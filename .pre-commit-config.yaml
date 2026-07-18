@@ -22,7 +22,7 @@ repos:
     hooks:
       - id: mypy
         name: mypy
-        entry: uv run mypy src/agent-fleet/src src/agent-fleet-api/src src/agent-fleet-mcp/src
+        entry: uv run mypy src
         language: system
         types: [python]
         pass_filenames: false

@@ -10,14 +10,55 @@ resolution-markers = [
     "python_full_version < '3.14' and sys_platform != 'win32'",
 ]
 
-[manifest]
-members = [
-    "agent-fleet",
-    "agent-fleet-api",
-    "agent-fleet-mcp",
+[[package]]
+name = "agent-fleet"
+source = { editable = "." }
+dependencies = [
+    { name = "capdisc" },
+    { name = "claude-agent-sdk" },
+    { name = "fastmcp" },
+    { name = "pydantic" },
 ]
 
-[manifest.dependency-groups]
+[package.optional-dependencies]
+all = [
+    { name = "fastapi" },
+    { name = "pydantic-settings" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+api = [
+    { name = "fastapi" },
+    { name = "pydantic-settings" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "httpx" },
+    { name = "mypy" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "types-pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "capdisc", git = "https://github.com/Magic-Man-us/capability-discovery.git?rev=4ad2dbd51cb04ff7fd16e7b9d2d8c47eea168a74" },
+    { name = "claude-agent-sdk", specifier = ">=0.2.108,<0.3" },
+    { name = "fastapi", marker = "extra == 'all'", specifier = ">=0.115" },
+    { name = "fastapi", marker = "extra == 'api'", specifier = ">=0.115" },
+    { name = "fastmcp", specifier = ">=3.4.2" },
+    { name = "pydantic", specifier = ">=2.7" },
+    { name = "pydantic-settings", marker = "extra == 'all'", specifier = ">=2.4" },
+    { name = "pydantic-settings", marker = "extra == 'api'", specifier = ">=2.4" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'all'", specifier = ">=0.30" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'api'", specifier = ">=0.30" },
+]
+provides-extras = ["all", "api"]
+
+[package.metadata.requires-dev]
 dev = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "mypy", specifier = ">=2.1.0" },
@@ -26,62 +67,6 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.6" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20260518" },
-]
-
-[[package]]
-name = "agent-fleet"
-source = { editable = "src/agent-fleet" }
-dependencies = [
-    { name = "capdisc" },
-    { name = "claude-agent-sdk" },
-    { name = "fastmcp" },
-    { name = "pydantic" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "capdisc", git = "https://github.com/Magic-Man-us/capability-discovery.git?rev=4ad2dbd51cb04ff7fd16e7b9d2d8c47eea168a74" },
-    { name = "claude-agent-sdk", specifier = ">=0.2.108,<0.3" },
-    { name = "fastmcp", specifier = ">=3.4.2" },
-    { name = "pydantic", specifier = ">=2.7" },
-]
-
-[[package]]
-name = "agent-fleet-api"
-source = { editable = "src/agent-fleet-api" }
-dependencies = [
-    { name = "agent-fleet" },
-    { name = "capdisc" },
-    { name = "fastapi" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "agent-fleet", editable = "src/agent-fleet" },
-    { name = "capdisc", git = "https://github.com/Magic-Man-us/capability-discovery.git?rev=4ad2dbd51cb04ff7fd16e7b9d2d8c47eea168a74" },
-    { name = "fastapi", specifier = ">=0.115" },
-    { name = "pydantic", specifier = ">=2.7" },
-    { name = "pydantic-settings", specifier = ">=2.4" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
-]
-
-[[package]]
-name = "agent-fleet-mcp"
-source = { editable = "src/agent-fleet-mcp" }
-dependencies = [
-    { name = "agent-fleet" },
-    { name = "capdisc" },
-    { name = "fastmcp" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "agent-fleet", editable = "src/agent-fleet" },
-    { name = "capdisc", git = "https://github.com/Magic-Man-us/capability-discovery.git?rev=4ad2dbd51cb04ff7fd16e7b9d2d8c47eea168a74" },
-    { name = "fastmcp", specifier = ">=3.4.2" },
 ]
 
 [[package]]

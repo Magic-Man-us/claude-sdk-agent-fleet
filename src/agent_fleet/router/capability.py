@@ -160,22 +160,31 @@ class CapabilityRouter:
         paths = {card.id: path for card, path in indexed}
         return cls(skills, list(BUILTIN_TOOLS), list(mcp_servers), list(plugins), paths)
 
-    def _query(self, text: TaskBrief, limit: RecallLimit) -> RecallQuery:
+    def _query(
+        self, text: TaskBrief, limit: RecallLimit, tags: list[Tag] | None = None
+    ) -> RecallQuery:
         """A find_* recall query for a task."""
-        return RecallQuery(text=text, limit=limit)
+        return RecallQuery(text=text, tags=tags or [], limit=limit)
 
     @validate_call
-    def find_skills(self, query: TaskBrief, limit: RecallLimit = DEFAULT_SLATE) -> list[SkillCard]:
+    def find_skills(
+        self,
+        query: TaskBrief,
+        limit: RecallLimit = DEFAULT_SLATE,
+        tags: list[Tag] | None = None,
+    ) -> list[SkillCard]:
         """The top-ranked skill cards for a task.
 
         Args:
             query: The task to match skills against.
             limit: Maximum cards to return.
+            tags: Tags to narrow by first (the `TwoStageRanker` stage-1 facet-filter) before
+                reranking by description; empty ranks purely by description.
 
         Returns:
             Up to `limit` skill cards, highest relevance first.
         """
-        candidates = self._skills.recall(self._query(query, limit))
+        candidates = self._skills.recall(self._query(query, limit, tags))
         return [SkillCard.model_validate(c.entry, from_attributes=True) for c in candidates]
 
     @validate_call

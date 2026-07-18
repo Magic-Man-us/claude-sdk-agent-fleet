@@ -4,12 +4,12 @@ The deterministic path from a `ProblemRequest` to an emitted agent. Skills and M
 retrieved by lexical recall; built-in tools are provisioned as a fixed set (their descriptions are
 mechanical and never match a task's goal language, so recall can't surface them).
 
-Entry points: [src/agent_fleet/main.py](../src/agent-fleet/src/agent_fleet/main.py) (CLI) and
-[src/agent_fleet_api/routes.py](../src/agent-fleet-api/src/agent_fleet_api/routes.py) (HTTP).
+Entry points: [src/agent_fleet/main.py](../src/agent_fleet/main.py) (CLI) and
+[src/agent_fleet_api/routes.py](../src/agent_fleet_api/routes.py) (HTTP).
 
 ```mermaid
 flowchart TD
-    PR["ProblemRequest<br/>task · name · domain? · tags · model · pinned · system_prompt?"]
+    PR["ProblemRequest<br/>task · name · tags · model · pinned · system_prompt?"]
 
     subgraph SCAN["SETUP · once at startup · scan_environment(roots, mcp_servers)"]
         CAT["Catalog<br/>skills + MCP servers only<br/><b>no built-in tools</b>"]
@@ -17,7 +17,7 @@ flowchart TD
 
     subgraph ASM["assemble()"]
         direction TB
-        Q["_query → RecallQuery<br/>text · domain · tags · limit"]
+        Q["_query → RecallQuery<br/>text · tags · limit"]
         REC["InMemoryCatalogSource.recall<br/>score via the Ranker seam · sort · trim to limit"]
         CAND["[ Candidate(entry, score) ]"]
 
@@ -41,7 +41,7 @@ flowchart TD
 
     subgraph RANK["Ranker — the recall swap seam (interchangeable behind recall())"]
         BM["BM25Ranker (default)<br/>ranks ALL entries by description<br/><b>no facet filter</b>"]
-        TS["TwoStageRanker (optional)<br/>1· domain/tag facet-filter<br/>2· BM25 rerank survivors"]
+        TS["TwoStageRanker (optional)<br/>1· tag facet-filter<br/>2· BM25 rerank survivors"]
     end
 
     PR --> Q
@@ -65,10 +65,10 @@ The thick edge (`PROV ==> SELC`) is the tool lane: tools enter selection as a fi
 recall, so a generated agent is never emitted with zero tools.
 
 `recall()` scores through a pluggable `Ranker` (the swap seam). The default `BM25Ranker` ranks
-**every** entry by description — no facet filter. `TwoStageRanker` instead narrows first (a `domain`
-query cuts only entries declaring a *different* domain; a tags-only query keeps the top-K by
-IDF-weighted tag overlap, untagged entries passing through), then reranks the survivors by
-description. Same `recall()` contract either way — only the default differs from the two-stage path.
+**every** entry by description — no facet filter. `TwoStageRanker` instead narrows first (a tagged
+query keeps the top-K by IDF-weighted tag overlap, untagged entries passing through; a query with no
+tags skips straight to reranking), then reranks the survivors by description. Same `recall()`
+contract either way — only the default differs from the two-stage path.
 `select()` then threshold-filters whatever the ranker returned: an entry is dropped unless it clears
 `RELEVANCE_THRESHOLD` **or** is pinned.
 
@@ -77,14 +77,14 @@ description. Same `recall()` contract either way — only the default differs fr
 | Stage | Code | In → Out |
 | --- | --- | --- |
 | Scan | `capdisc.discovery.scan_environment` ([separate repo](https://github.com/Magic-Man-us/capability-discovery)) | roots, mcp_servers → `Catalog` (skills + MCP servers) |
-| Query | [engine/pipeline.py](../src/agent-fleet/src/agent_fleet/engine/pipeline.py) `_query` | `ProblemRequest` → `RecallQuery` |
-| Recall | [engine/source.py](../src/agent-fleet/src/agent_fleet/engine/source.py) `InMemoryCatalogSource.recall` | `RecallQuery`, `Catalog` → ranked `Candidate`s (via a `Ranker`: `BM25Ranker` default, or `TwoStageRanker` facet-filter → rerank) |
-| Select | [engine/select.py](../src/agent-fleet/src/agent_fleet/engine/select.py) `select` | `Candidate`s, request → `SelectedCapabilities` (skill clears `RELEVANCE_THRESHOLD` **or** pinned; skills capped at `DEFAULT_SKILL_BUDGET`; tools = `DEFAULT_TOOLS`) |
-| Compose | [engine/compose.py](../src/agent-fleet/src/agent_fleet/engine/compose.py) `compose` | request, selection → `AgentSpec` |
-| Score | [engine/efficiency.py](../src/agent-fleet/src/agent_fleet/engine/efficiency.py) `score` | `AgentSpec` → `EfficiencyReport` |
-| Emit | [engine/render.py](../src/agent-fleet/src/agent_fleet/engine/render.py) `to_options` → `render_claude_sdk` (source) or [engine/run.py](../src/agent-fleet/src/agent_fleet/engine/run.py) `run_agent` (live) | `AgentSpec` → `ClaudeAgentOptions`, then a runnable program or a live run |
+| Query | [engine/pipeline.py](../src/agent_fleet/engine/pipeline.py) `_query` | `ProblemRequest` → `RecallQuery` |
+| Recall | [engine/source.py](../src/agent_fleet/engine/source.py) `InMemoryCatalogSource.recall` | `RecallQuery`, `Catalog` → ranked `Candidate`s (via a `Ranker`: `BM25Ranker` default, or `TwoStageRanker` facet-filter → rerank) |
+| Select | [engine/select.py](../src/agent_fleet/engine/select.py) `select` | `Candidate`s, request → `SelectedCapabilities` (skill clears `RELEVANCE_THRESHOLD` **or** pinned; skills capped at `DEFAULT_SKILL_BUDGET`; tools = `DEFAULT_TOOLS`) |
+| Compose | [engine/compose.py](../src/agent_fleet/engine/compose.py) `compose` | request, selection → `AgentSpec` |
+| Score | [engine/efficiency.py](../src/agent_fleet/engine/efficiency.py) `score` | `AgentSpec` → `EfficiencyReport` |
+| Emit | [engine/render.py](../src/agent_fleet/engine/render.py) `to_options` → `render_claude_sdk` (source) or [engine/run.py](../src/agent_fleet/engine/run.py) `run_agent` (live) | `AgentSpec` → `ClaudeAgentOptions`, then a runnable program or a live run |
 
-`to_options(spec)` ([engine/render.py](../src/agent-fleet/src/agent_fleet/engine/render.py)) is the single
+`to_options(spec)` ([engine/render.py](../src/agent_fleet/engine/render.py)) is the single
 spec→SDK mapping: `run_agent` runs it live, `render_claude_sdk` serializes the same object to
 source. `tool_grant(spec)` is the single source for `allowed_tools` — the named tools plus a
 `mcp__<server>__*` wildcard per selected MCP server.

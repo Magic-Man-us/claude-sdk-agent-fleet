@@ -7,13 +7,15 @@ the SDK.
 
 ## Repository layout
 
-Python only. Three workspace members, layered so each depends on the ones below it.
+Python only. One package (`agent-fleet`), three subpackages layered so each depends on the ones
+below it. `pip install agent-fleet` gets the core engine and MCP pool server; `agent-fleet[api]`
+(or `[all]`) adds the FastAPI service.
 
-| Path | What it is | Run or import |
-|---|---|---|
-| `src/agent-fleet/` | `agent_fleet` — core engine: pipeline, router, pool | imported |
-| `src/agent-fleet-api/` | `agent_fleet_api` — FastAPI service over the core | run |
-| `src/agent-fleet-mcp/` | `agent_fleet_mcp` — MCP server exposing the pool as tools (`pool-mcp`) | run |
+| Path | What it is | Run or import | Install |
+|---|---|---|---|
+| `src/agent_fleet/` | core engine: pipeline, router, pool | imported | `agent-fleet` |
+| `src/agent_fleet_api/` | FastAPI service over the core | run | `agent-fleet[api]` |
+| `src/agent_fleet_mcp/` | MCP server exposing the pool as tools (`pool-mcp`) | run | `agent-fleet` |
 
 ```
 agent_fleet_api ─┐
@@ -21,10 +23,10 @@ agent_fleet_api ─┐
 agent_fleet_mcp ─┘
 ```
 
-The two front-ends carry the web/MCP dependencies so the engine carries none. Environment scanning
-lives in [capdisc](https://github.com/Magic-Man-us/capability-discovery), a
-separate repo consumed as a pinned git dependency. That repo is currently private — building this
-workspace requires access to it until it's published separately.
+The API front-end carries the web dependencies as an optional extra so the core engine carries
+none by default. Environment scanning lives in
+[capdisc](https://github.com/Magic-Man-us/capability-discovery), a separate, public repo consumed
+as a pinned git dependency.
 
 ## Pipeline
 
@@ -50,9 +52,10 @@ subagent. Runs, per-agent runs, and findings are persisted alongside the entry.
 ## Develop
 
 ```
+uv sync --extra api
 uv run pytest
 uv run ruff check
-uv run mypy src/agent-fleet/src src/agent-fleet-api/src src/agent-fleet-mcp/src
+uv run mypy src
 ```
 
 Details: [docs/OVERVIEW.md](docs/OVERVIEW.md) · [docs/pipeline.md](docs/pipeline.md) ·

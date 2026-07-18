@@ -9,6 +9,7 @@ from capdisc.catalog import (
     McpServerRef,
     McpTool,
     RecallLimit,
+    Tag,
 )
 from capdisc.mcp_catalog import enumerate_mcp_servers
 from capdisc.mcp_harvest import (
@@ -56,18 +57,22 @@ def _router() -> CapabilityRouter:
 
 
 @mcp.tool
-def find_skills(query: TaskBrief, limit: RecallLimit = DEFAULT_SLATE) -> list[SkillCard]:
+def find_skills(
+    query: TaskBrief, limit: RecallLimit = DEFAULT_SLATE, tags: list[Tag] | None = None
+) -> list[SkillCard]:
     """Search installed skills and return the few most relevant to a task, ranked — the
     deferred-tool alternative to registering every skill into context.
 
     Args:
         query: A short description of the task to match skills against.
         limit: Maximum number of cards to return.
+        tags: Tags to narrow by first before ranking by description; omit to rank purely by
+            description.
 
     Returns:
         A small slate of skill cards; call load_skill on the ids you actually need.
     """
-    return _router().find_skills(query, limit)
+    return _router().find_skills(query, limit, tags)
 
 
 @mcp.tool

@@ -14,8 +14,8 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-      - run: uv sync --all-packages --python ${{ matrix.python-version }}
+      - run: uv sync --extra api --python ${{ matrix.python-version }}
       - run: uv run ruff check .
       - run: uv run ruff format --check .
-      - run: uv run mypy src/agent-fleet/src src/agent-fleet-api/src src/agent-fleet-mcp/src
+      - run: uv run mypy src
       - run: uv run pytest

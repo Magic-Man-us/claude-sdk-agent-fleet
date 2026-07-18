@@ -13,7 +13,7 @@ lint:              ## check only, no writes
 	uv run ruff format --check .
 
 type:              ## strict mypy over the source packages (tests are runtime-verified by pytest)
-	uv run mypy src/agent-fleet/src src/agent-fleet-api/src src/agent-fleet-mcp/src
+	uv run mypy src
 
 test:
 	uv run pytest

@@ -82,6 +82,15 @@ def test_find_skills_respects_limit(tmp_path: Path) -> None:
     assert len(_router(tmp_path).find_skills("write and publish documentation", limit=1)) == 1
 
 
+def test_find_skills_carries_tags_into_the_recall_query(tmp_path: Path) -> None:
+    """`find_skills(..., tags=[...])` must reach `RecallQuery.tags` — the DomainTag fold once
+    dropped this path's only way to route by tag entirely (`_query` had no tags parameter)."""
+    _corpus(tmp_path)
+    router = _router(tmp_path)
+    assert router._query("audit the code", limit=5, tags=["security"]).tags == ["security"]
+    assert router._query("audit the code", limit=5).tags == []
+
+
 def test_find_tools_surfaces_builtin(tmp_path: Path) -> None:
     _corpus(tmp_path)
     refs = [card.ref for card in _router(tmp_path).find_tools("read a file from disk", limit=3)]

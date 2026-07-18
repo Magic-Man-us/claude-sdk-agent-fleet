@@ -1,3 +1,54 @@
+[project]
+name = "agent-fleet"
+dynamic = ["version"]
+description = "Deterministic generator that assembles a minimal Claude Agent SDK agent from a problem statement and a capability corpus, with an HTTP API and MCP pool server."
+requires-python = ">=3.12"
+license = "MIT"
+authors = [{ name = "Magic-Man-us" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+dependencies = [
+    "capdisc",
+    "claude-agent-sdk>=0.2.108,<0.3",
+    "fastmcp>=3.4.2",
+    "pydantic>=2.7",
+]
+
+[project.optional-dependencies]
+api = [
+    "fastapi>=0.115",
+    "pydantic-settings>=2.4",
+    "uvicorn[standard]>=0.30",
+]
+all = ["agent-fleet[api]"]
+
+[project.urls]
+Homepage = "https://github.com/Magic-Man-us/claude-sdk-agent-fleet"
+Repository = "https://github.com/Magic-Man-us/claude-sdk-agent-fleet"
+
+[project.scripts]
+agent-fleet = "agent_fleet.main:main"
+skill-router = "agent_fleet.router.mcp_server:main"
+agent-fleet-api = "agent_fleet_api.app:main"
+agent-fleet-openapi = "agent_fleet_api.schema:main"
+pool-mcp = "agent_fleet_mcp.pool_server:main"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agent_fleet", "src/agent_fleet_api", "src/agent_fleet_mcp"]
+
 [dependency-groups]
 dev = [
     "mypy>=2.1.0",
@@ -10,27 +61,12 @@ dev = [
 ]
 
 [tool.uv.sources]
-agent-fleet = { workspace = true }
-agent-fleet-api = { workspace = true }
-agent-fleet-mcp = { workspace = true }
 capdisc = { git = "https://github.com/Magic-Man-us/capability-discovery.git", rev = "4ad2dbd51cb04ff7fd16e7b9d2d8c47eea168a74" }
-
-[tool.uv.workspace]
-members = [
-    "src/agent-fleet",
-    "src/agent-fleet-api",
-    "src/agent-fleet-mcp",
-]
 
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-src = [
-    "tests",
-    "src/agent-fleet/src",
-    "src/agent-fleet-api/src",
-    "src/agent-fleet-mcp/src",
-]
+src = ["tests", "src"]
 
 [tool.ruff.lint]
 select = [
@@ -63,7 +99,7 @@ ignore = [
 "tests/**" = ["S101", "S102", "PLR2004", "ARG", "PLC0415"]
 "tests/api/**" = ["S101", "PLR2004", "ARG", "PLC0415"]
 "tests/mcp/**" = ["S101", "PLR2004", "ARG", "PLC0415"]
-"src/agent-fleet-api/src/agent_fleet_api/**" = ["S101"]  # assert isinstance(...) narrows FastAPI app.state
+"src/agent_fleet_api/**" = ["S101"]  # assert isinstance(...) narrows FastAPI app.state
 "__init__.py" = ["F401"]                            # re-exports
 
 [tool.ruff.lint.isort]
@@ -74,7 +110,7 @@ docstring-code-format = true
 
 [tool.mypy]
 python_version = "3.12"
-mypy_path = "src/agent-fleet/src:src/agent-fleet-api/src:src/agent-fleet-mcp/src"
+mypy_path = "src"
 plugins = ["pydantic.mypy"]
 strict = true
 warn_unreachable = true
@@ -94,8 +130,8 @@ addopts = "--strict-markers --strict-config -ra"
 
 [tool.coverage.run]
 source = [
-    "src/agent-fleet/src",
-    "src/agent-fleet-api/src",
-    "src/agent-fleet-mcp/src",
+    "src/agent_fleet",
+    "src/agent_fleet_api",
+    "src/agent_fleet_mcp",
 ]
 branch = true

@@ -21,6 +21,7 @@ from capdisc.catalog import (
     McpTool,
     RecallLimit,
     SkillRef,
+    Tag,
     ToolRef,
 )
 
@@ -88,6 +89,7 @@ _MCP_TOOLS_TA: TypeAdapter[list[McpTool]] = TypeAdapter(list[McpTool])
 class _FindSkillsArgs(InputModel):
     query: TaskBrief
     limit: RecallLimit = DEFAULT_SLATE
+    tags: list[Tag] = []
 
 
 class _FindToolsArgs(InputModel):
@@ -144,8 +146,9 @@ class Orchestrator:
         self,
         query: TaskBrief,
         limit: RecallLimit = DEFAULT_SLATE,
+        tags: list[Tag] | None = None,
     ) -> list[SkillCard]:
-        return self._router.find_skills(query, limit)
+        return self._router.find_skills(query, limit, tags)
 
     def find_tools(self, query: TaskBrief, limit: RecallLimit = DEFAULT_SLATE) -> list[ToolCard]:
         return self._router.find_tools(query, limit)
@@ -203,6 +206,11 @@ _FIND_SKILLS_SCHEMA: dict[str, Any] = {
     "properties": {
         "query": {"type": "string", "description": "The task to find skills for."},
         "limit": {"type": "integer", "description": "Max results to return."},
+        "tags": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Tags to narrow by first before ranking by description.",
+        },
     },
     "required": ["query"],
 }
@@ -287,7 +295,7 @@ def build_orchestrator_server(orch: Orchestrator) -> McpSdkServerConfig:
     )
     async def _find_skills(args: dict[str, Any]) -> dict[str, Any]:
         parsed = _FindSkillsArgs.model_validate(args)
-        cards = orch.find_skills(parsed.query, parsed.limit)
+        cards = orch.find_skills(parsed.query, parsed.limit, parsed.tags)
         return {"content": [{"type": "text", "text": _SKILL_CARDS_TA.dump_json(cards).decode()}]}
 
     @tool(
