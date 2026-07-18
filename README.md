@@ -67,3 +67,7 @@ make coverage       # test coverage, printed to the terminal
 
 Details: [docs/OVERVIEW.md](docs/OVERVIEW.md) · [docs/pipeline.md](docs/pipeline.md) ·
 [docs/catalog-boundary.md](docs/catalog-boundary.md)
+
+## Coverage
+
+[![codecov sunburst](https://codecov.io/gh/Magic-Man-us/claude-sdk-agent-fleet/graphs/sunburst.svg)](https://codecov.io/gh/Magic-Man-us/claude-sdk-agent-fleet)
