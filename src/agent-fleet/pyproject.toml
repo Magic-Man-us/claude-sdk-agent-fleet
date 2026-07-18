@@ -1,0 +1,44 @@
+[project]
+name = "agent-fleet"
+dynamic = ["version"]
+description = "Deterministic generator that assembles a minimal Claude Agent SDK agent from a problem statement and a capability corpus."
+requires-python = ">=3.12"
+license = "MIT"
+authors = [{ name = "Magic-Man-us" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+dependencies = [
+    "capabilities-discovery",
+    "claude-agent-sdk>=0.2.108,<0.3",
+    "fastmcp>=3.4.2",
+    "pydantic>=2.7",
+]
+
+[project.urls]
+Homepage = "https://github.com/Magic-Man-us/claude-sdk-agent-fleet"
+Repository = "https://github.com/Magic-Man-us/claude-sdk-agent-fleet"
+
+[project.scripts]
+agent-fleet = "agent_fleet.main:main"
+skill-router = "agent_fleet.router.mcp_server:main"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+# This package lives two levels below the repo root, where .git (and the tags) is.
+[tool.hatch.version.raw-options]
+root = "../.."
+search_parent_directories = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agent_fleet"]

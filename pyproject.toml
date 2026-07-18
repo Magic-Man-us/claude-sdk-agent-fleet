@@ -1,0 +1,101 @@
+[dependency-groups]
+dev = [
+    "mypy>=2.1.0",
+    "pytest>=8",
+    "pytest-cov>=5",
+    "pre-commit>=3.8",
+    "httpx>=0.27",
+    "ruff>=0.6",
+    "types-pyyaml>=6.0.12.20260518",
+]
+
+[tool.uv.sources]
+agent-fleet = { workspace = true }
+agent-fleet-api = { workspace = true }
+agent-fleet-mcp = { workspace = true }
+capabilities-discovery = { git = "ssh://git@github.com/Magic-Man-us/capabilities-discovery.git", rev = "54c1e3ec32f85c5dd1bc37167991c616d5caaf14" }
+
+[tool.uv.workspace]
+members = [
+    "src/agent-fleet",
+    "src/agent-fleet-api",
+    "src/agent-fleet-mcp",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = [
+    "tests",
+    "src/agent-fleet/src",
+    "src/agent-fleet-api/src",
+    "src/agent-fleet-mcp/src",
+]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",    # pycodestyle
+    "F",         # pyflakes
+    "I",         # isort
+    "N",         # pep8-naming
+    "UP",        # pyupgrade
+    "B",         # bugbear
+    "A",         # builtin shadowing
+    "C4",        # comprehensions
+    "DTZ",       # naive datetimes
+    "SIM",       # simplify
+    "PTH",       # use pathlib
+    "RET",       # return hygiene
+    "TRY",       # exception antipatterns
+    "S",         # bandit security
+    "ARG",       # unused arguments
+    "PL",        # pylint subset
+    "RUF",       # ruff-specific
+]
+ignore = [
+    "TRY003",    # long messages in raise; noisy
+    "PLR0913",   # too many args; Pydantic/FastAPI signatures trip this
+    "RUF012",    # mutable class defaults — Pydantic copies field defaults per instance; ClassVar is wrong for a field
+]
+
+[tool.ruff.lint.per-file-ignores]
+# asserts, exec of generated code, magic values, fixtures, local imports
+"tests/**" = ["S101", "S102", "PLR2004", "ARG", "PLC0415"]
+"tests/api/**" = ["S101", "PLR2004", "ARG", "PLC0415"]
+"tests/mcp/**" = ["S101", "PLR2004", "ARG", "PLC0415"]
+"src/agent-fleet-api/src/agent_fleet_api/**" = ["S101"]  # assert isinstance(...) narrows FastAPI app.state
+"__init__.py" = ["F401"]                            # re-exports
+
+[tool.ruff.lint.isort]
+known-first-party = ["capabilities_discovery", "agent_fleet", "agent_fleet_api", "agent_fleet_mcp"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src/agent-fleet/src:src/agent-fleet-api/src:src/agent-fleet-mcp/src"
+plugins = ["pydantic.mypy"]
+strict = true
+warn_unreachable = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+warn_untyped_fields = true
+
+[tool.pytest.ini_options]
+pythonpath = ["tests"]
+testpaths = ["tests"]
+addopts = "--strict-markers --strict-config -ra"
+
+[tool.coverage.run]
+source = [
+    "src/agent-fleet/src",
+    "src/agent-fleet-api/src",
+    "src/agent-fleet-mcp/src",
+]
+branch = true

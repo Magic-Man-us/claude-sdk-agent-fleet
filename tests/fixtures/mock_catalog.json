@@ -1,0 +1,12 @@
+{
+  "entries": [
+    {"kind": "skill", "id": "skill.changelog", "description": "Curate changelog entries grouped by category from a commit diff", "tags": ["git", "changelog", "release"], "ref": "changelog"},
+    {"kind": "skill", "id": "skill.error_handling", "description": "Apply robust error handling and retry patterns to code", "tags": ["errors", "robustness"], "ref": "error-handling"},
+    {"kind": "mcp_server", "id": "mcp.playwright", "description": "Browser automation server driving a real browser", "tags": ["browser", "web", "automation"], "ref": "playwright", "tools": [
+      {"name": "browser_navigate", "description": "Navigate the browser to a url and wait for load.", "params": ["url"]},
+      {"name": "browser_click", "description": "Click an element on the page.", "params": ["element", "ref"]},
+      {"name": "browser_take_screenshot", "description": "Take a screenshot of the current page.", "params": ["filename"]},
+      {"name": "browser_type", "description": "Type text into an editable element.", "params": ["element", "text"]}
+    ]}
+  ]
+}

@@ -1,0 +1,30 @@
+/.claude
+/.devws
+/.pytest_cache
+/.ruff_cache
+/.venv
+__pycache__/
+*.pyc
+
+# local secrets
+.env
+.env.*
+!.env.example
+
+
+# >>> AgentForge managed gitignore (do not edit between markers) >>>
+**/.agentforge/audit.jsonl
+**/.agentforge/backups/
+**/.agentforge/tombstones/
+**/.agentforge/logs/
+**/.agentforge/sessions/
+**/.agentforge/diagnostics/
+**/.agentforge/cache/
+# <<< AgentForge managed gitignore <<<
+
+# generated discovery reports (build artifacts, not source)
+discovery-report.html
+*-report.html
+
+# playwright-mcp session artifacts (screenshots, console logs)
+.playwright-mcp/
