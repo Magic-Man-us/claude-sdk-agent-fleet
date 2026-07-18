@@ -3,7 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/claude-sdk-agent-fleet)](https://pypi.org/project/claude-sdk-agent-fleet/)
 [![Python versions](https://img.shields.io/pypi/pyversions/claude-sdk-agent-fleet)](https://pypi.org/project/claude-sdk-agent-fleet/)
 [![License](https://img.shields.io/pypi/l/claude-sdk-agent-fleet)](LICENSE)
-[![CI](https://github.com/Magic-Man-us/claude-sdk-agent-fleet/actions/workflows/ci.yml/badge.svg)](https://github.com/Magic-Man-us/claude-sdk-agent-fleet/actions/workflows/ci.yml)
+[![CI](https://github.com/Magic-Man-us/claude-sdk-agent-fleet/actions/workflows/publish.yml/badge.svg)](https://github.com/Magic-Man-us/claude-sdk-agent-fleet/actions/workflows/publish.yml)
 [![codecov](https://codecov.io/gh/Magic-Man-us/claude-sdk-agent-fleet/graph/badge.svg)](https://codecov.io/gh/Magic-Man-us/claude-sdk-agent-fleet)
 
 Assembles a minimal Claude Agent SDK agent from a problem statement and a capability corpus, then

@@ -1,12 +1,16 @@
-name: Publish to PyPI
-
+name: ci
 on:
+  push:
+  pull_request:
   release:
     types: [published]
 
 jobs:
-  build:
+  check:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -14,26 +18,36 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-      - run: uv sync --locked --extra api
+      - run: uv sync --extra api --python ${{ matrix.python-version }}
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy src
-      - run: uv run pytest
-      - run: uv build
-      - uses: actions/upload-artifact@v7
+      - run: uv run pytest --cov --cov-report=xml --cov-report=term-missing --junitxml=junit.xml -o junit_family=legacy
+      - if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@v5
         with:
-          name: dist
-          path: dist/
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
+          fail_ci_if_error: false
+      - if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: junit.xml
 
   publish:
-    needs: build
+    needs: check
+    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/checkout@v7
         with:
-          name: dist
-          path: dist/
+          fetch-depth: 0 # hatch-vcs derives the version from tags/history
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv build
       - uses: pypa/gh-action-pypi-publish@release/v1
