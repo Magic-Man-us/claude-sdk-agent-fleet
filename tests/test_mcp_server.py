@@ -19,7 +19,7 @@ def _corpus(root: Path) -> None:
         "vuln-auditor",
         "---\nname: vuln-auditor\n"
         "description: Audit code for security vulnerabilities.\n"
-        "domain: security\ntags: [audit]\n---\n\nAudit the code, then stop.",
+        "tags: [security, audit]\n---\n\nAudit the code, then stop.",
     )
 
 

@@ -40,7 +40,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "capabilities-discovery", git = "ssh://git@github.com/Magic-Man-us/capabilities-discovery.git?rev=54c1e3ec32f85c5dd1bc37167991c616d5caaf14" },
+    { name = "capabilities-discovery", git = "https://github.com/Magic-Man-us/capdisc.git?rev=bea3f47dff4abf903a3f79431815ecf6ac78c102" },
     { name = "claude-agent-sdk", specifier = ">=0.2.108,<0.3" },
     { name = "fastmcp", specifier = ">=3.4.2" },
     { name = "pydantic", specifier = ">=2.7" },
@@ -61,7 +61,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "agent-fleet", editable = "src/agent-fleet" },
-    { name = "capabilities-discovery", git = "ssh://git@github.com/Magic-Man-us/capabilities-discovery.git?rev=54c1e3ec32f85c5dd1bc37167991c616d5caaf14" },
+    { name = "capabilities-discovery", git = "https://github.com/Magic-Man-us/capdisc.git?rev=bea3f47dff4abf903a3f79431815ecf6ac78c102" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pydantic-settings", specifier = ">=2.4" },
@@ -80,7 +80,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "agent-fleet", editable = "src/agent-fleet" },
-    { name = "capabilities-discovery", git = "ssh://git@github.com/Magic-Man-us/capabilities-discovery.git?rev=54c1e3ec32f85c5dd1bc37167991c616d5caaf14" },
+    { name = "capabilities-discovery", git = "https://github.com/Magic-Man-us/capdisc.git?rev=bea3f47dff4abf903a3f79431815ecf6ac78c102" },
     { name = "fastmcp", specifier = ">=3.4.2" },
 ]
 
@@ -231,7 +231,7 @@ wheels = [
 [[package]]
 name = "capabilities-discovery"
 version = "0.1.0"
-source = { git = "ssh://git@github.com/Magic-Man-us/capabilities-discovery.git?rev=54c1e3ec32f85c5dd1bc37167991c616d5caaf14#54c1e3ec32f85c5dd1bc37167991c616d5caaf14" }
+source = { git = "https://github.com/Magic-Man-us/capdisc.git?rev=bea3f47dff4abf903a3f79431815ecf6ac78c102#bea3f47dff4abf903a3f79431815ecf6ac78c102" }
 dependencies = [
     { name = "fastmcp" },
     { name = "py-key-value-aio", extra = ["filetree"] },

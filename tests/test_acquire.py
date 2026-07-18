@@ -46,13 +46,13 @@ def _router() -> CapabilityRouter:
             id="skill.browser-automation",
             ref="browser-automation",
             description="Drive a headless browser to automate web pages and take screenshots.",
-            domain="web",
+            tags=["web"],
         ),
         CatalogSkill(
             id="skill.pdf-extract",
             ref="pdf-extract",
             description="Extract text and tables from a PDF document.",
-            domain="documentation",
+            tags=["documentation"],
         ),
     ]
     mcp_servers = [

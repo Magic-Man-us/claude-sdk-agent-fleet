@@ -30,7 +30,6 @@ from agent_fleet.settings import AgentFleetSettings, current_discovery_scope
 from capabilities_discovery.catalog import (
     DEFAULT_RECALL_LIMIT,
     CatalogEntryId,
-    DomainTag,
     RecallLimit,
     Tag,
 )
@@ -88,7 +87,6 @@ def create_agent(
     agent_key: AgentKey,
     task: TaskBrief,
     name: AgentName | None = None,
-    domain: DomainTag | None = None,
     tags: list[Tag] = [],  # noqa: B006 — read-only; an empty-list default reads best in the tool schema
     team: TeamSlug = DEFAULT_TEAM,
     model: ModelId = ModelId.inherit,
@@ -105,7 +103,6 @@ def create_agent(
             overwrites it, preserving the existing session UUID unless `reset_session` is True.
         task: The task to build the agent for; also the text `find_agents` ranks against.
         name: Optional display name; auto-slugged from the task when omitted.
-        domain: Optional domain to route recall; None recalls across every domain.
         tags: Optional routing tags to narrow recall and to label the stored entry.
         team: The team that owns the assembled agent.
         model: Which model the agent runs on; `inherit` defers to the caller's model.
@@ -120,7 +117,6 @@ def create_agent(
     request = ProblemRequest(
         task=task,
         name=name,
-        domain=domain,
         tags=tags,
         team=team,
         model=model,

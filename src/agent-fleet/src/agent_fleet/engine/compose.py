@@ -9,7 +9,7 @@ def compose(request: ProblemRequest, selection: SelectedCapabilities) -> AgentSp
     """Assemble the final agent spec from the request and its selected capabilities.
 
     Args:
-        request: The problem request; supplies name, task, model, domain/tags, and an optional
+        request: The problem request; supplies name, task, model, tags, and an optional
             override system prompt. A missing name is auto-slugged from the task.
         selection: The chosen skills, tools, and MCP servers to equip.
 
@@ -29,7 +29,6 @@ def compose(request: ProblemRequest, selection: SelectedCapabilities) -> AgentSp
         description=request.task,  # AgentDescription summarizes the (possibly long) task
         system_prompt=request.system_prompt or prompt.body,
         model=request.model,
-        domain=request.domain,
         tags=request.tags,
         tools=selection.tools,
         skills=selection.skills,

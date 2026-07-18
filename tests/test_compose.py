@@ -30,16 +30,14 @@ def test_caller_prompt_overrides_template() -> None:
     assert spec.system_prompt == prompt
 
 
-def test_compose_carries_domain_and_tags() -> None:
+def test_compose_carries_tags() -> None:
     request = ProblemRequest(
         task="Audit the codebase for vulnerabilities",
         name="auditor",
-        domain="security",
-        tags=["audit", "pentest"],
+        tags=["security", "audit", "pentest"],
     )
     spec = compose(request, SelectedCapabilities())
-    assert spec.domain == "security"
-    assert spec.tags == ["audit", "pentest"]
+    assert spec.tags == ["security", "audit", "pentest"]
 
 
 def test_compose_summarizes_overlong_task() -> None:

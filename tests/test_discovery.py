@@ -30,32 +30,22 @@ def test_scan_skills_parses_frontmatter(tmp_path: Path) -> None:
     assert "changelog" in cards[0].description
 
 
-def test_scan_skills_parses_domain_and_tags(tmp_path: Path) -> None:
+def test_scan_skills_parses_tags(tmp_path: Path) -> None:
     write_skill(
         tmp_path,
         "audit",
         "---\nname: audit\ndescription: Audit code for vulnerabilities.\n"
-        "domain: security\ntags: [audit, pentest]\n---\n",
+        "tags: [audit, pentest]\n---\n",
     )
     card = scan_skills(_roots(tmp_path))[0]
-    assert card.domain == "security"
     assert "audit" in card.tags
+    assert "pentest" in card.tags
 
 
 def test_scan_skills_untagged_skill_still_scans(tmp_path: Path) -> None:
     write_skill(tmp_path, "plain", "---\nname: plain\ndescription: A plain untagged skill.\n---\n")
     card = scan_skills(_roots(tmp_path))[0]
-    assert card.domain is None
     assert card.tags == []
-
-
-def test_scan_skills_unknown_domain_is_untagged(tmp_path: Path) -> None:
-    write_skill(
-        tmp_path,
-        "bogus",
-        "---\nname: bogus\ndescription: Skill with an out-of-vocab domain.\ndomain: nope\n---\n",
-    )
-    assert scan_skills(_roots(tmp_path))[0].domain is None
 
 
 def test_scan_skills_falls_back_to_dir_name(tmp_path: Path) -> None:

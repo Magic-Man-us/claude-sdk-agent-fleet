@@ -146,11 +146,15 @@ def test_env_takes_precedence_over_json_file(tmp_path: Path) -> None:
 
 
 def test_add_dirs_contributes_project_scope_root(tmp_path: Path) -> None:
+    # --add-dir points at a directory outside the project tree; a sibling of `start`, not one
+    # nested under it (a nested dir is already covered by the normal project/nested-skill walk).
+    start = tmp_path / "proj"
+    (start / ".git").mkdir(parents=True)
     extra = tmp_path / "extra"
     (extra / ".claude" / "agents").mkdir(parents=True)
     touch(extra / ".claude" / "agents" / "my-agent.md", "hello")
 
-    roots = ScopeRoots.discover(start=tmp_path, add_dirs=[extra])
+    roots = ScopeRoots.discover(start=start, add_dirs=[extra])
     inv = ScopeInventory.scan(roots)
 
     names = {a.name for a in inv.artifacts}

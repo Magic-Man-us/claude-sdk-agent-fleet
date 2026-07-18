@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from capabilities_discovery.base import FrozenModel
-from capabilities_discovery.catalog import DomainTag, McpServerRef, SkillRef, Tag, ToolRef
+from capabilities_discovery.catalog import McpServerRef, SkillRef, Tag, ToolRef
 from capabilities_discovery.hooks import HookConfig
 
 from .thinking import ThinkingConfig
@@ -29,7 +29,6 @@ class AgentSpec(FrozenModel):
     description: AgentDescription
     system_prompt: PromptBody
     model: ModelId = ModelId.inherit
-    domain: DomainTag | None = None
     tags: list[Tag] = []
 
     tools: list[ToolRef] = []

@@ -48,14 +48,14 @@ def _corpus(root: Path) -> None:
         "vuln-auditor",
         "---\nname: vuln-auditor\n"
         "description: Audit code for security vulnerabilities.\n"
-        "domain: security\ntags: [audit]\n---\n\nAudit the code, then stop.",
+        "tags: [security, audit]\n---\n\nAudit the code, then stop.",
     )
     write_skill(
         root,
         "doc-writer",
         "---\nname: doc-writer\n"
         "description: Write and publish project documentation.\n"
-        "domain: documentation\ntags: [docs]\n---\n\nWrite the docs, then stop.",
+        "tags: [documentation, docs]\n---\n\nWrite the docs, then stop.",
     )
 
 
@@ -71,11 +71,10 @@ def _router(
     )
 
 
-def test_find_skills_routes_by_domain(tmp_path: Path) -> None:
+def test_find_skills_ranks_by_relevance(tmp_path: Path) -> None:
     _corpus(tmp_path)
-    cards = _router(tmp_path).find_skills("audit the code for vulnerabilities", domain="security")
+    cards = _router(tmp_path).find_skills("audit the code for vulnerabilities")
     assert cards[0].ref == "vuln-auditor"
-    assert cards[0].domain == "security"
 
 
 def test_find_skills_respects_limit(tmp_path: Path) -> None:

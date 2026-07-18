@@ -14,7 +14,6 @@ from capabilities_discovery.catalog import (
     CatalogPlugin,
     CatalogSkill,
     CatalogTool,
-    DomainTag,
     EntryDescription,
     McpServerRef,
     McpTool,
@@ -80,7 +79,6 @@ class SkillCard(_CardView):
 
     kind: Literal["skill"] = "skill"
     ref: SkillRef
-    domain: DomainTag | None = None
 
 
 class ToolCard(_CardView):
@@ -114,7 +112,7 @@ class CapabilityRouter:
     """The deferred-tool capability router: indexes the environment once, then answers a task
     with a small BM25-ranked slate of the relevant skills, tools, or MCP servers. The agent sees
     `find_skills`/`find_tools`/`find_mcp`, not every capability registered into context. One
-    source per kind, so each slate is the top-k of that kind (skills are domain-routed too)."""
+    source per kind, so each slate is the top-k of that kind (skills are tag-routed too)."""
 
     def __init__(
         self,
@@ -127,7 +125,7 @@ class CapabilityRouter:
         """Build one ranked source per capability kind from the pre-indexed cards.
 
         Args:
-            skills: The skill cards; ranked with the domain-routing `TwoStageRanker`.
+            skills: The skill cards; ranked with the tag-routing `TwoStageRanker`.
             tools: The tool cards.
             mcp_servers: The MCP server cards.
             plugins: The plugin cards.
@@ -162,27 +160,22 @@ class CapabilityRouter:
         paths = {card.id: path for card, path in indexed}
         return cls(skills, list(BUILTIN_TOOLS), list(mcp_servers), list(plugins), paths)
 
-    def _query(
-        self, text: TaskBrief, limit: RecallLimit, domain: DomainTag | None = None
-    ) -> RecallQuery:
-        """A find_* recall query for a task, optionally routed by domain."""
-        return RecallQuery(text=text, domain=domain, limit=limit)
+    def _query(self, text: TaskBrief, limit: RecallLimit) -> RecallQuery:
+        """A find_* recall query for a task."""
+        return RecallQuery(text=text, limit=limit)
 
     @validate_call
-    def find_skills(
-        self, query: TaskBrief, domain: DomainTag | None = None, limit: RecallLimit = DEFAULT_SLATE
-    ) -> list[SkillCard]:
+    def find_skills(self, query: TaskBrief, limit: RecallLimit = DEFAULT_SLATE) -> list[SkillCard]:
         """The top-ranked skill cards for a task.
 
         Args:
             query: The task to match skills against.
-            domain: Optional domain to route within; None searches every domain.
             limit: Maximum cards to return.
 
         Returns:
             Up to `limit` skill cards, highest relevance first.
         """
-        candidates = self._skills.recall(self._query(query, limit, domain))
+        candidates = self._skills.recall(self._query(query, limit))
         return [SkillCard.model_validate(c.entry, from_attributes=True) for c in candidates]
 
     @validate_call

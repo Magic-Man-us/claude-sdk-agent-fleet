@@ -20,8 +20,8 @@ class AssemblyResult(FrozenModel):
 
 
 def _query(request: ProblemRequest) -> RecallQuery:
-    """The `RecallQuery` for a request: its task text plus optional domain/tag routing."""
-    return RecallQuery(text=request.task, domain=request.domain, tags=request.tags)
+    """The `RecallQuery` for a request: its task text plus optional tag routing."""
+    return RecallQuery(text=request.task, tags=request.tags)
 
 
 def assemble(

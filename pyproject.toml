@@ -13,7 +13,7 @@ dev = [
 agent-fleet = { workspace = true }
 agent-fleet-api = { workspace = true }
 agent-fleet-mcp = { workspace = true }
-capabilities-discovery = { git = "ssh://git@github.com/Magic-Man-us/capabilities-discovery.git", rev = "54c1e3ec32f85c5dd1bc37167991c616d5caaf14" }
+capabilities-discovery = { git = "https://github.com/Magic-Man-us/capdisc.git", rev = "bea3f47dff4abf903a3f79431815ecf6ac78c102" }
 
 [tool.uv.workspace]
 members = [

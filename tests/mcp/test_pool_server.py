@@ -310,7 +310,6 @@ def test_schema_lists_new_tool_and_full_create_params(pool: AgentPool) -> None:
         "agent_key",
         "task",
         "name",
-        "domain",
         "tags",
         "team",
         "model",

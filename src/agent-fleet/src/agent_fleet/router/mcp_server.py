@@ -6,7 +6,6 @@ from fastmcp import FastMCP
 
 from capabilities_discovery.catalog import (
     CatalogEntryId,
-    DomainTag,
     McpServerRef,
     McpTool,
     RecallLimit,
@@ -57,21 +56,18 @@ def _router() -> CapabilityRouter:
 
 
 @mcp.tool
-def find_skills(
-    query: TaskBrief, domain: DomainTag | None = None, limit: RecallLimit = DEFAULT_SLATE
-) -> list[SkillCard]:
+def find_skills(query: TaskBrief, limit: RecallLimit = DEFAULT_SLATE) -> list[SkillCard]:
     """Search installed skills and return the few most relevant to a task, ranked — the
     deferred-tool alternative to registering every skill into context.
 
     Args:
         query: A short description of the task to match skills against.
-        domain: Optional domain to narrow the search; None searches every domain.
         limit: Maximum number of cards to return.
 
     Returns:
         A small slate of skill cards; call load_skill on the ids you actually need.
     """
-    return _router().find_skills(query, domain, limit)
+    return _router().find_skills(query, limit)
 
 
 @mcp.tool

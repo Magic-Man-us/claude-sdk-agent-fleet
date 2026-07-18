@@ -10,8 +10,6 @@ from capabilities_discovery.catalog import (
     DEFAULT_RECALL_LIMIT,
     Catalog,
     CatalogEntry,
-    CatalogSkill,
-    DomainTag,
     RecallLimit,
     RelevanceScore,
     Tag,
@@ -65,11 +63,10 @@ def token_list(text: str) -> list[str]:
 
 
 class RecallQuery(FrozenModel):
-    """A task brief plus optional routing (`domain` + free `tags`), normalized into the query a
+    """A task brief plus optional free `tags` routing, normalized into the query a
     `CatalogSource` ranks against."""
 
     text: TaskBrief
-    domain: DomainTag | None = None
     tags: list[Tag] = []
     limit: RecallLimit = DEFAULT_RECALL_LIMIT
 
@@ -174,15 +171,6 @@ class BM25Ranker:
 DEFAULT_PREFILTER_K = 15
 
 
-def _entry_domain(entry: CatalogEntry) -> DomainTag | None:
-    """The entry's declared domain — only skills carry one; every other kind is domain-agnostic."""
-    match entry:
-        case CatalogSkill():
-            return entry.domain
-        case _:
-            return None
-
-
 def _tag_idf(entries: list[CatalogEntry]) -> dict[str, float]:
     """Inverse document frequency per tag across the candidate set.
 
@@ -193,22 +181,16 @@ def _tag_idf(entries: list[CatalogEntry]) -> dict[str, float]:
     return {tag: log(n / count) for tag, count in df.items()}
 
 
-def _prefilter_score(
-    query: RecallQuery, entry: CatalogEntry, idf: dict[str, float]
-) -> tuple[bool, float]:
-    """Stage-1 sort key for one entry: `(domain_hit, idf_weighted_tag_overlap)`, higher first."""
-    domain_hit = query.domain is not None and _entry_domain(entry) == query.domain
-    tag_weight = sum(idf.get(tag, 0.0) for tag in set(query.tags) & set(entry.tags))
-    return (domain_hit, tag_weight)
+def _prefilter_score(query: RecallQuery, entry: CatalogEntry, idf: dict[str, float]) -> float:
+    """Stage-1 sort key for one entry: its IDF-weighted tag overlap with the query, higher first."""
+    return sum(idf.get(tag, 0.0) for tag in set(query.tags) & set(entry.tags))
 
 
 class TwoStageRanker:
-    """Two-stage retrieval. Stage 1 narrows the candidate set: a `domain` query keeps entries
-    in that domain plus undeclared (domain-agnostic) ones, cutting only entries that declare a
-    conflicting domain; a tags-only query ranks the domain-tagged entries by IDF-weighted tag
-    overlap and keeps the top-K (tuned for recall, untagged entries pass through). Stage 2
-    reranks the survivors by description, so the final pick is by meaning, not tags alone. A
-    query with neither domain nor tags skips stage 1 (pure BM25)."""
+    """Two-stage retrieval. Stage 1 narrows the candidate set: a tags query ranks the tagged
+    entries by IDF-weighted tag overlap and keeps the top-K (tuned for recall, untagged entries
+    pass through). Stage 2 reranks the survivors by description, so the final pick is by meaning,
+    not tags alone. A query with no tags skips stage 1 (pure BM25)."""
 
     def __init__(
         self, prefilter_k: int = DEFAULT_PREFILTER_K, rerank: Ranker | None = None
@@ -217,27 +199,21 @@ class TwoStageRanker:
         self._rerank = rerank or BM25Ranker()
 
     def rank(self, query: RecallQuery, entries: list[CatalogEntry]) -> list[Candidate]:
-        """Narrow by domain/tags, then rerank the survivors by description.
+        """Narrow by tags, then rerank the survivors by description.
 
         Args:
-            query: The recall query; its `domain`/`tags` drive stage 1, its `text` drives stage 2.
+            query: The recall query; its `tags` drive stage 1, its `text` drives stage 2.
             entries: The candidate entries to rank.
 
         Returns:
-            Scored candidates from the rerank ranker. A query with neither domain nor tags skips
-            stage 1 and reranks every entry (pure BM25).
+            Scored candidates from the rerank ranker. A query with no tags skips stage 1 and
+            reranks every entry (pure BM25).
         """
-        if query.domain is None and not query.tags:
+        if not query.tags:
             return self._rerank.rank(query, entries)
-        if query.domain is not None:
-            # a declared domain is a positive signal: cut entries that declare a *different*
-            # domain, but keep undeclared (domain-agnostic) ones — they rank lexically, so
-            # missing metadata is never penalised (the tags-only path below stays soft too)
-            within = [e for e in entries if _entry_domain(e) in (None, query.domain)]
-            return self._rerank.rank(query, within)
         idf = _tag_idf(entries)
-        routed = [entry for entry in entries if _entry_domain(entry) is not None]
-        passthrough = [entry for entry in entries if _entry_domain(entry) is None]
+        routed = [entry for entry in entries if entry.tags]
+        passthrough = [entry for entry in entries if not entry.tags]
         routed.sort(key=lambda entry: _prefilter_score(query, entry, idf), reverse=True)
         return self._rerank.rank(query, routed[: self._k] + passthrough)
 
@@ -262,7 +238,7 @@ class InMemoryCatalogSource:
         `select` trims later.
 
         Args:
-            query: The recall query, carrying the text and optional domain/tag routing.
+            query: The recall query, carrying the text and optional tag routing.
 
         Returns:
             Up to `query.limit` candidates, ranked highest score first.

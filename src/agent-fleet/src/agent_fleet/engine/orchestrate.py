@@ -17,7 +17,6 @@ from pydantic import TypeAdapter, validate_call
 from capabilities_discovery.base import FrozenModel, InputModel
 from capabilities_discovery.catalog import (
     CatalogEntryId,
-    DomainTag,
     McpServerRef,
     McpTool,
     RecallLimit,
@@ -88,7 +87,6 @@ _MCP_TOOLS_TA: TypeAdapter[list[McpTool]] = TypeAdapter(list[McpTool])
 
 class _FindSkillsArgs(InputModel):
     query: TaskBrief
-    domain: DomainTag | None = None
     limit: RecallLimit = DEFAULT_SLATE
 
 
@@ -115,7 +113,6 @@ class _ProposeArgs(InputModel):
     description: AgentDescription
     system_prompt: PromptBody
     model: ModelId = ModelId.inherit
-    domain: DomainTag | None = None
     skills: list[SkillRef] = []
     tools: list[ToolRef] = []
     mcp_servers: list[McpServerRef] = []
@@ -146,10 +143,9 @@ class Orchestrator:
     def find_skills(
         self,
         query: TaskBrief,
-        domain: DomainTag | None = None,
         limit: RecallLimit = DEFAULT_SLATE,
     ) -> list[SkillCard]:
-        return self._router.find_skills(query, domain, limit)
+        return self._router.find_skills(query, limit)
 
     def find_tools(self, query: TaskBrief, limit: RecallLimit = DEFAULT_SLATE) -> list[ToolCard]:
         return self._router.find_tools(query, limit)
@@ -169,7 +165,6 @@ class Orchestrator:
         description: AgentDescription,
         system_prompt: PromptBody,
         model: ModelId = ModelId.inherit,
-        domain: DomainTag | None = None,
         skills: list[SkillRef] | None = None,
         tools: list[ToolRef] | None = None,
         mcp_servers: list[McpServerRef] | None = None,
@@ -181,7 +176,6 @@ class Orchestrator:
             description=description,
             system_prompt=system_prompt,
             model=model,
-            domain=domain,
             skills=skills or [],
             tools=tools or [],
             mcp_servers=mcp_servers or [],
@@ -208,7 +202,6 @@ _FIND_SKILLS_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
         "query": {"type": "string", "description": "The task to find skills for."},
-        "domain": {"type": "string", "description": "Optional domain filter."},
         "limit": {"type": "integer", "description": "Max results to return."},
     },
     "required": ["query"],
@@ -255,7 +248,6 @@ _PROPOSE_SPEC_SCHEMA: dict[str, Any] = {
         "description": {"type": "string", "description": "One-line agent description."},
         "system_prompt": {"type": "string", "description": "Worker system prompt."},
         "model": {"type": "string", "description": "Model id (omit to inherit)."},
-        "domain": {"type": "string", "description": "Optional domain tag."},
         "skills": {
             "type": "array",
             "items": {"type": "string"},
@@ -295,7 +287,7 @@ def build_orchestrator_server(orch: Orchestrator) -> McpSdkServerConfig:
     )
     async def _find_skills(args: dict[str, Any]) -> dict[str, Any]:
         parsed = _FindSkillsArgs.model_validate(args)
-        cards = orch.find_skills(parsed.query, parsed.domain, parsed.limit)
+        cards = orch.find_skills(parsed.query, parsed.limit)
         return {"content": [{"type": "text", "text": _SKILL_CARDS_TA.dump_json(cards).decode()}]}
 
     @tool(
@@ -350,7 +342,6 @@ def build_orchestrator_server(orch: Orchestrator) -> McpSdkServerConfig:
             description=parsed.description,
             system_prompt=parsed.system_prompt,
             model=parsed.model,
-            domain=parsed.domain,
             skills=parsed.skills,
             tools=parsed.tools,
             mcp_servers=parsed.mcp_servers,

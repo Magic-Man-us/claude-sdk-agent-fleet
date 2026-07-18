@@ -7,7 +7,6 @@ from capabilities_discovery.catalog import (
     CatalogPlugin,
     CatalogSkill,
     CatalogTool,
-    DomainTag,
 )
 from capabilities_discovery.discovery import BUILTIN_TOOLS, scan_environment, scan_skills
 
@@ -63,7 +62,6 @@ __all__ = [
     "CatalogSkill",
     "CatalogSource",
     "CatalogTool",
-    "DomainTag",
     "EfficiencyConfig",
     "EfficiencyReport",
     "Finding",
