@@ -18,6 +18,9 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy src
-      - run: uv run pytest --cov --cov-report=term-missing --cov-report=markdown
-      - if: matrix.python-version == '3.12'
-        run: cat coverage.md >> "$GITHUB_STEP_SUMMARY"
+      - run: uv run pytest --cov --cov-report=xml --cov-report=term-missing
+      - uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
+          fail_ci_if_error: false

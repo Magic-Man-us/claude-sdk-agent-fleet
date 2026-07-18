@@ -4,6 +4,7 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/claude-sdk-agent-fleet)](https://pypi.org/project/claude-sdk-agent-fleet/)
 [![License](https://img.shields.io/pypi/l/claude-sdk-agent-fleet)](LICENSE)
 [![CI](https://github.com/Magic-Man-us/claude-sdk-agent-fleet/actions/workflows/ci.yml/badge.svg)](https://github.com/Magic-Man-us/claude-sdk-agent-fleet/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/Magic-Man-us/claude-sdk-agent-fleet/graph/badge.svg)](https://codecov.io/gh/Magic-Man-us/claude-sdk-agent-fleet)
 
 Assembles a minimal Claude Agent SDK agent from a problem statement and a capability corpus, then
 runs and resumes it. The generation path is deterministic — no LLM and no network in it, so the
