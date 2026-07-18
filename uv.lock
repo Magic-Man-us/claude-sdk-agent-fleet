@@ -11,65 +11,6 @@ resolution-markers = [
 ]
 
 [[package]]
-name = "agent-fleet"
-source = { editable = "." }
-dependencies = [
-    { name = "capdisc" },
-    { name = "claude-agent-sdk" },
-    { name = "fastmcp" },
-    { name = "pydantic" },
-]
-
-[package.optional-dependencies]
-all = [
-    { name = "fastapi" },
-    { name = "pydantic-settings" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-api = [
-    { name = "fastapi" },
-    { name = "pydantic-settings" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "httpx" },
-    { name = "mypy" },
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-    { name = "types-pyyaml" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "capdisc", git = "https://github.com/Magic-Man-us/capability-discovery.git?rev=4ad2dbd51cb04ff7fd16e7b9d2d8c47eea168a74" },
-    { name = "claude-agent-sdk", specifier = ">=0.2.108,<0.3" },
-    { name = "fastapi", marker = "extra == 'all'", specifier = ">=0.115" },
-    { name = "fastapi", marker = "extra == 'api'", specifier = ">=0.115" },
-    { name = "fastmcp", specifier = ">=3.4.2" },
-    { name = "pydantic", specifier = ">=2.7" },
-    { name = "pydantic-settings", marker = "extra == 'all'", specifier = ">=2.4" },
-    { name = "pydantic-settings", marker = "extra == 'api'", specifier = ">=2.4" },
-    { name = "uvicorn", extras = ["standard"], marker = "extra == 'all'", specifier = ">=0.30" },
-    { name = "uvicorn", extras = ["standard"], marker = "extra == 'api'", specifier = ">=0.30" },
-]
-provides-extras = ["all", "api"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "httpx", specifier = ">=0.27" },
-    { name = "mypy", specifier = ">=2.1.0" },
-    { name = "pre-commit", specifier = ">=3.8" },
-    { name = "pytest", specifier = ">=8" },
-    { name = "pytest-cov", specifier = ">=5" },
-    { name = "ruff", specifier = ">=0.6" },
-    { name = "types-pyyaml", specifier = ">=6.0.12.20260518" },
-]
-
-[[package]]
 name = "aiofile"
 version = "3.11.1"
 source = { registry = "https://pypi.org/simple" }
@@ -316,6 +257,65 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/89/e7/04d252fc286228ff6fe79374886cb9866b95aaad8574a90efeb403c2761d/claude_agent_sdk-0.2.108-py3-none-manylinux_2_17_aarch64.whl", hash = "sha256:116402fd52e779394ac5c1493ae82996b29b91dff6594790746864563ab09601", size = 73497502, upload-time = "2026-06-23T21:17:31.447Z" },
     { url = "https://files.pythonhosted.org/packages/29/33/bd5979b58a03bc7a257df6b2835b98e29aad064082da27ef7d7887825b7b/claude_agent_sdk-0.2.108-py3-none-manylinux_2_17_x86_64.whl", hash = "sha256:af31d4aadea5799306da9989c31246710ac248da7506558bbbcca072dcee3a92", size = 74456599, upload-time = "2026-06-23T21:17:36.593Z" },
     { url = "https://files.pythonhosted.org/packages/7c/4a/0e85f2f8b1d49f7c902c10181cbc4e5acccedbe5be0017f88e7a32371de9/claude_agent_sdk-0.2.108-py3-none-win_amd64.whl", hash = "sha256:594e3d37c8d7519f3fe8ddc44fedc821a45d842e4c017ecf17ad4b6e4d6a94c4", size = 74194280, upload-time = "2026-06-23T21:17:42.726Z" },
+]
+
+[[package]]
+name = "claude-sdk-agent-fleet"
+source = { editable = "." }
+dependencies = [
+    { name = "capdisc" },
+    { name = "claude-agent-sdk" },
+    { name = "fastmcp" },
+    { name = "pydantic" },
+]
+
+[package.optional-dependencies]
+all = [
+    { name = "fastapi" },
+    { name = "pydantic-settings" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+api = [
+    { name = "fastapi" },
+    { name = "pydantic-settings" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "httpx" },
+    { name = "mypy" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "types-pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "capdisc", git = "https://github.com/Magic-Man-us/capability-discovery.git?rev=4ad2dbd51cb04ff7fd16e7b9d2d8c47eea168a74" },
+    { name = "claude-agent-sdk", specifier = ">=0.2.108,<0.3" },
+    { name = "fastapi", marker = "extra == 'all'", specifier = ">=0.115" },
+    { name = "fastapi", marker = "extra == 'api'", specifier = ">=0.115" },
+    { name = "fastmcp", specifier = ">=3.4.2" },
+    { name = "pydantic", specifier = ">=2.7" },
+    { name = "pydantic-settings", marker = "extra == 'all'", specifier = ">=2.4" },
+    { name = "pydantic-settings", marker = "extra == 'api'", specifier = ">=2.4" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'all'", specifier = ">=0.30" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'api'", specifier = ">=0.30" },
+]
+provides-extras = ["all", "api"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "mypy", specifier = ">=2.1.0" },
+    { name = "pre-commit", specifier = ">=3.8" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.6" },
+    { name = "types-pyyaml", specifier = ">=6.0.12.20260518" },
 ]
 
 [[package]]
