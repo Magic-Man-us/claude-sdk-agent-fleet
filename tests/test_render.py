@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from claude_agent_sdk import ClaudeAgentOptions
 
 from agent_fleet import AgentSpec
 from agent_fleet.engine.render import (
     SUBAGENT_TOOL,
+    _HookSettingsFile,
     render_claude_sdk,
     to_agent_definition,
     to_options,
     tool_grant,
+    with_hooks,
     with_subagents,
 )
 from agent_fleet.models.agent import (
@@ -20,6 +24,13 @@ from agent_fleet.models.agent import (
     PermissionMode,
     ThinkingDisplay,
 )
+from capabilities_discovery.hooks import HookConfig, HookEvent
+
+
+def _hooks(event: str, command: str) -> HookConfig:
+    return HookConfig.model_validate(
+        {event: [{"matcher": "Bash", "hooks": [{"type": "command", "command": command}]}]}
+    )
 
 
 def _load_options(code: str) -> ClaudeAgentOptions:
@@ -306,6 +317,99 @@ def test_with_subagents_supervisor_scenario_round_trips_two_workers() -> None:
     assert options.agents["worker-a"].prompt == spec_a.system_prompt
     assert options.agents["worker-a"].tools == tool_grant(spec_a)
     assert options.agents["worker-b"].tools == tool_grant(spec_b)
+
+
+def test_with_hooks_is_noop_without_hooks(tmp_path: Path) -> None:
+    spec = AgentSpec(
+        name="auditor",
+        description="Audits code for vulnerabilities.",
+        system_prompt="You are auditor. Audit the code for vulnerabilities and stop now.",
+        tools=("Read",),
+    )
+    base = to_options(spec)
+    options = with_hooks(base, spec, tmp_path)
+    assert options is base  # unchanged, no settings wired
+    assert options.settings is None
+    assert list(tmp_path.iterdir()) == []  # no file written
+
+
+def test_with_hooks_writes_settings_file_for_main_spec(tmp_path: Path) -> None:
+    spec = AgentSpec(
+        name="auditor",
+        description="Audits code for vulnerabilities.",
+        system_prompt="You are auditor. Audit the code for vulnerabilities and stop now.",
+        tools=("Read",),
+        hooks=_hooks("PreToolUse", "./guard.sh"),
+    )
+    options = with_hooks(to_options(spec), spec, tmp_path)
+    path = tmp_path / "auditor.hooks.json"
+    assert options.settings == str(path)
+    settings = _HookSettingsFile.model_validate_json(path.read_text(encoding="utf-8"))
+    groups = settings.hooks.root[HookEvent.pre_tool_use]
+    assert [h.command for group in groups for h in group.hooks] == ["./guard.sh"]
+
+
+def test_with_hooks_merges_main_and_subagent_hooks(tmp_path: Path) -> None:
+    main = AgentSpec(
+        name="supervisor",
+        description="Coordinates the subworkers.",
+        system_prompt="You are supervisor. Delegate and stop now.",
+        tools=("Read",),
+        hooks=_hooks("PreToolUse", "./main-guard.sh"),
+    )
+    sub = AgentSpec(
+        name="worker",
+        description="Does focused subwork.",
+        system_prompt="You are worker. Do the focused subtask and stop now.",
+        tools=("Grep",),
+        hooks=_hooks("Stop", "./sub-cleanup.sh"),
+    )
+    options = with_hooks(to_options(main), main, tmp_path, subagents={"worker": sub})
+    path = tmp_path / "supervisor.hooks.json"
+    assert options.settings == str(path)
+    settings = _HookSettingsFile.model_validate_json(path.read_text(encoding="utf-8"))
+    assert set(settings.hooks.root) == {HookEvent.pre_tool_use, HookEvent.stop}
+    pre = settings.hooks.root[HookEvent.pre_tool_use]
+    stop = settings.hooks.root[HookEvent.stop]
+    assert [h.command for group in pre for h in group.hooks] == ["./main-guard.sh"]
+    assert [h.command for group in stop for h in group.hooks] == ["./sub-cleanup.sh"]
+
+
+def test_with_hooks_concatenates_same_event_across_specs(tmp_path: Path) -> None:
+    main = AgentSpec(
+        name="supervisor",
+        description="Coordinates the subworkers.",
+        system_prompt="You are supervisor. Delegate and stop now.",
+        tools=("Read",),
+        hooks=_hooks("PreToolUse", "./main-guard.sh"),
+    )
+    sub = AgentSpec(
+        name="worker",
+        description="Does focused subwork.",
+        system_prompt="You are worker. Do the focused subtask and stop now.",
+        tools=("Grep",),
+        hooks=_hooks("PreToolUse", "./sub-guard.sh"),
+    )
+    options = with_hooks(to_options(main), main, tmp_path, subagents={"worker": sub})
+    settings = _HookSettingsFile.model_validate_json(
+        Path(options.settings).read_text(encoding="utf-8")
+    )
+    groups = settings.hooks.root[HookEvent.pre_tool_use]
+    commands = [h.command for group in groups for h in group.hooks]
+    assert commands == ["./main-guard.sh", "./sub-guard.sh"]  # both fire, no override
+
+
+def test_render_sdk_emits_settings_when_hooks_wired(tmp_path: Path) -> None:
+    spec = AgentSpec(
+        name="auditor",
+        description="Audits code for vulnerabilities.",
+        system_prompt="You are auditor. Audit the code for vulnerabilities and stop now.",
+        tools=("Read",),
+        hooks=_hooks("PreToolUse", "./guard.sh"),
+    )
+    options = with_hooks(to_options(spec), spec, tmp_path)
+    emitted = _load_options(render_claude_sdk(spec, options))
+    assert emitted.settings == str(tmp_path / "auditor.hooks.json")
 
 
 def test_agent_spec_thinking_round_trips_through_discriminated_union() -> None:

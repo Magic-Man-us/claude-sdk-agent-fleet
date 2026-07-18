@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from capabilities_discovery.base import FrozenModel
 
 from ..models.agent import AgentSpec, ProblemRequest
 from .compose import compose
 from .efficiency import EfficiencyConfig, EfficiencyReport, score
-from .render import render_claude_sdk
+from .render import render_claude_sdk, to_options, with_hooks
 from .select import SelectedCapabilities, select
 from .source import CatalogSource, RecallQuery
 
@@ -46,6 +48,19 @@ def assemble(
     return AssemblyResult(spec=spec, selection=selection, efficiency=report)
 
 
-def generate(spec: AgentSpec) -> str:
-    """Render an assembled spec into the source of a runnable Claude Agent SDK program."""
-    return render_claude_sdk(spec)
+def generate(spec: AgentSpec, directory: Path | None = None) -> str:
+    """Render an assembled spec into the source of a runnable Claude Agent SDK program.
+
+    When `directory` is given and the spec declares hooks, a `<name>.hooks.json` settings file is
+    written there (alongside the emitted program) and the emitted options load it via `settings=`.
+    Without a directory — a stdout-only preview with nowhere persistent to write the sidecar — hooks
+    are not wired.
+
+    Args:
+        spec: The assembled spec to render.
+        directory: Where the program (and its hooks sidecar) is persisted; typically `agent_dir`.
+    """
+    options = to_options(spec)
+    if directory is not None:
+        options = with_hooks(options, spec, directory)
+    return render_claude_sdk(spec, options)

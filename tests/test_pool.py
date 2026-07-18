@@ -107,6 +107,42 @@ def test_delete_removes_entry_and_reports_existence(tmp_path: Path) -> None:
     assert pool.delete(_AGENT_KEY) is False
 
 
+def test_delete_cascades_to_runs_agent_runs_and_findings(tmp_path: Path) -> None:
+    pool = _pool(tmp_path)
+    pool.save(_AGENT_KEY, _spec())
+    run = pool.start_run(_AGENT_KEY, _TASK)
+    session = str(uuid.uuid4())
+    pool.record_agent_run(run.run_id, session)
+    pool.record_agent_run(run.run_id, session, tool_use_id="toolu_1", agent_name="reviewer")
+    pool.record_finding(_AGENT_KEY, run.run_id, session, "found a hardcoded secret in config")
+
+    assert pool.list_runs(_AGENT_KEY)
+    assert pool.list_agent_runs(run.run_id)
+    assert pool.list_findings(_AGENT_KEY)
+
+    assert pool.delete(_AGENT_KEY) is True
+    assert pool.list_runs(_AGENT_KEY) == []
+    assert pool.list_agent_runs(run.run_id) == []  # agent_runs cascaded via the agent's runs
+    assert pool.list_findings(_AGENT_KEY) == []
+
+
+def test_delete_cascade_spares_other_agents(tmp_path: Path) -> None:
+    pool = _pool(tmp_path)
+    pool.save("KEEP-1", _spec())
+    pool.save("DROP-1", _spec())
+    kept = pool.start_run("KEEP-1", _TASK)
+    dropped = pool.start_run("DROP-1", _TASK)
+    session = str(uuid.uuid4())
+    pool.record_agent_run(kept.run_id, session)
+    pool.record_finding("KEEP-1", kept.run_id, session, "a finding worth preserving here")
+    pool.record_agent_run(dropped.run_id, session)
+
+    assert pool.delete("DROP-1") is True
+    assert [r.run_id for r in pool.list_runs("KEEP-1")] == [kept.run_id]
+    assert pool.list_agent_runs(kept.run_id)  # untouched
+    assert pool.list_findings("KEEP-1")
+
+
 def test_find_ranks_the_closest_description_first(tmp_path: Path) -> None:
     pool = _pool(tmp_path)
     pool.save("P1", _spec(name="auditor", description="Audits code for security vulnerabilities."))

@@ -63,7 +63,7 @@ def generate_agent(request: ProblemRequest, engine: EngineDep) -> AssemblyResult
 def render_agent(spec: AgentSpec, core: CoreSettingsDep) -> RenderedAgent:
     """Render an assembled spec into a runnable Claude Agent SDK program, persisting it to the
     configured ``agent_dir`` when one is set."""
-    source = generate(spec)
+    source = generate(spec, core.agent_dir)
     written = write_agent(spec.name, source, core.agent_dir) if core.agent_dir is not None else None
     return RenderedAgent(source=source, path=written)
 

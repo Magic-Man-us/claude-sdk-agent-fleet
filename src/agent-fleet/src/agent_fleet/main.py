@@ -57,7 +57,7 @@ def main() -> None:
     roots = current_discovery_scope().roots()
     catalog = scan_environment(roots)
     result = assemble(request, InMemoryCatalogSource(catalog))
-    source = generate(result.spec)
+    source = generate(result.spec, core.agent_dir)
     sys.stdout.write(source)
     if core.agent_dir is not None:
         sys.stderr.write(f"wrote {write_agent(result.spec.name, source, core.agent_dir)}\n")

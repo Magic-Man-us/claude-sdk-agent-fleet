@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
+from pathlib import Path
 from typing import cast
 
 from claude_agent_sdk import ClaudeAgentOptions
 from claude_agent_sdk.types import AgentDefinition, ThinkingConfig
 
+from capabilities_discovery.base import FrozenWireModel
 from capabilities_discovery.catalog import ToolRef
+from capabilities_discovery.hooks import HookConfig, HookEvent, MatcherGroup
 
 from ..models.agent import AgentName, AgentSpec, ModelId
 
@@ -165,6 +168,71 @@ def with_agent_resume(options: ClaudeAgentOptions) -> ClaudeAgentOptions:
     return dataclasses.replace(options, allowed_tools=allowed_tools)
 
 
+class _HookSettingsFile(FrozenWireModel):
+    """The `{"hooks": ...}` shape of a Claude Code settings JSON file — the one key the SDK's
+    native `settings` loader reads for declarative hooks."""
+
+    hooks: HookConfig
+
+
+def _merge_hook_configs(configs: Iterable[HookConfig]) -> HookConfig | None:
+    """Concatenate several hook configs into one, or None when none of them declare any hooks.
+
+    `HookConfig` is `dict[HookEvent, list[MatcherGroup]]`, so the merge is per-event list
+    concatenation: every matcher group fires regardless of which spec declared it — there is no
+    override or conflict resolution to do.
+    """
+    merged: dict[HookEvent, list[MatcherGroup]] = {}
+    for config in configs:
+        for event, groups in config.root.items():
+            merged.setdefault(event, []).extend(groups)
+    return HookConfig(merged) if merged else None
+
+
+def with_hooks(
+    options: ClaudeAgentOptions,
+    spec: AgentSpec,
+    directory: Path,
+    *,
+    subagents: Mapping[AgentName, AgentSpec] | None = None,
+) -> ClaudeAgentOptions:
+    """Augment already-built options to load the main spec's (and any subagents') declarative hooks.
+
+    Claude Code hooks are session-wide — a matching tool event fires the hook whichever agent (main
+    or a dispatched subagent) triggered it — so one settings file loaded by the top-level options
+    covers every agent in the run. The main spec's `hooks` and each subagent spec's `hooks` are
+    therefore merged into ONE `<spec.name>.hooks.json` written under `directory`, and
+    `options.settings` is pointed at it; the SDK's native `--settings` loader already understands
+    the exact declarative shape `HookConfig` models, so no callback translation is needed. Follows
+    the `with_subagents` append-only `dataclasses.replace` discipline.
+
+    A no-op returning `options` unchanged — and writing no file — when neither the main spec nor any
+    subagent declares hooks.
+
+    Args:
+        options: The already-built options to augment; not mutated.
+        spec: The main agent spec whose hooks (when set) are loaded.
+        directory: The directory the merged settings file is written to; created when missing.
+        subagents: The dispatchable subagents whose own hooks fold into the same file; None or empty
+            means the main spec's hooks alone.
+
+    Returns:
+        A copy of `options` with `settings` pointed at the written file, or `options` unchanged when
+        there are no hooks to load.
+    """
+    specs = [spec, *(subagents.values() if subagents is not None else ())]
+    merged = _merge_hook_configs(s.hooks for s in specs if s.hooks is not None)
+    if merged is None:
+        return options
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"{spec.name}.hooks.json"
+    path.write_text(
+        _HookSettingsFile(hooks=merged).model_dump_json(by_alias=True, exclude_none=True),
+        encoding="utf-8",
+    )
+    return dataclasses.replace(options, settings=str(path))
+
+
 def _field_default(field: dataclasses.Field[object]) -> object:
     """The default value of a dataclass field (calling its factory), or None for a required one."""
     if field.default is not dataclasses.MISSING:
@@ -174,19 +242,21 @@ def _field_default(field: dataclasses.Field[object]) -> object:
     return None
 
 
-def render_claude_sdk(spec: AgentSpec) -> str:
+def render_claude_sdk(spec: AgentSpec, options: ClaudeAgentOptions | None = None) -> str:
     """Emit a runnable Claude Agent SDK program from the spec.
 
     Serializes the `ClaudeAgentOptions` that `to_options` builds — emitting only the options set to
     a meaningful, non-default value — so the emitted program and the live run can never drift.
 
     Args:
-        spec: The agent spec to render.
+        spec: The agent spec to render; supplies the emitted module's name/description text.
+        options: The options to serialize; `to_options(spec)` when None. `generate` passes options
+            already augmented (e.g. `with_hooks`) so the emitted program carries them too.
 
     Returns:
         The Python source of a standalone, runnable agent module.
     """
-    options = to_options(spec)
+    options = options if options is not None else to_options(spec)
     lines: list[str] = []
     # reflective serialization of the SDK options dataclass — the deliberate exception to the
     # no-dynamic-access rule, so the option list has exactly one author (to_options)

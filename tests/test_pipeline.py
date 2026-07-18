@@ -1,7 +1,17 @@
 from __future__ import annotations
 
-from agent_fleet import Catalog, InMemoryCatalogSource, ProblemRequest, assemble, generate
+from pathlib import Path
+
+from agent_fleet import (
+    AgentSpec,
+    Catalog,
+    InMemoryCatalogSource,
+    ProblemRequest,
+    assemble,
+    generate,
+)
 from agent_fleet.engine.select import DEFAULT_TOOLS
+from capabilities_discovery.hooks import HookConfig
 
 _PROBLEM = "Summarize the git commit history into grouped changelog entries"
 
@@ -21,6 +31,37 @@ def test_end_to_end_golden(catalog: Catalog) -> None:
     assert "ClaudeAgentOptions" in rendered
     assert f"allowed_tools={DEFAULT_TOOLS!r}" in rendered
     assert "skills=['changelog']" in rendered
+
+
+def test_generate_wires_hooks_settings_file_when_directory_given(tmp_path: Path) -> None:
+    spec = AgentSpec(
+        name="auditor",
+        description="Audits code for vulnerabilities.",
+        system_prompt="You are auditor. Audit the code for vulnerabilities and stop now.",
+        tools=["Read"],
+        hooks=HookConfig.model_validate(
+            {"PreToolUse": [{"hooks": [{"type": "command", "command": "./g.sh"}]}]}
+        ),
+    )
+    rendered = generate(spec, tmp_path)
+    path = tmp_path / "auditor.hooks.json"
+    assert path.exists()
+    assert f"settings={str(path)!r}" in rendered
+
+
+def test_generate_omits_hooks_without_directory(tmp_path: Path) -> None:
+    spec = AgentSpec(
+        name="auditor",
+        description="Audits code for vulnerabilities.",
+        system_prompt="You are auditor. Audit the code for vulnerabilities and stop now.",
+        tools=["Read"],
+        hooks=HookConfig.model_validate(
+            {"PreToolUse": [{"hooks": [{"type": "command", "command": "./g.sh"}]}]}
+        ),
+    )
+    rendered = generate(spec)  # stdout-only preview: nowhere to write the sidecar
+    assert "settings=" not in rendered
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_assembly_is_deterministic(catalog: Catalog) -> None:

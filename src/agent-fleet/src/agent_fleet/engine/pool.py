@@ -113,6 +113,7 @@ class AgentPool:
             db_path: The SQLite file backing the pool; its parent directory is created if missing.
         """
         db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._db_path = db_path
         # cross-thread self._conn (AsyncAgentPool runs it via asyncio.to_thread) needs this lock.
         self._write_lock = threading.Lock()
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
@@ -125,6 +126,11 @@ class AgentPool:
         self._conn.execute(_CREATE_AGENT_RUNS_TABLE)
         self._conn.execute(_CREATE_FINDINGS_TABLE)
         self._conn.commit()
+
+    @property
+    def db_path(self) -> Path:
+        """The SQLite file backing the pool; its parent is the pool's writable state directory."""
+        return self._db_path
 
     def save(
         self,
@@ -490,12 +496,25 @@ class AgentPool:
         return [_row_to_finding(row) for row in rows]
 
     def delete(self, agent_key: AgentKey) -> bool:
-        """Remove the entry stored under `agent_key`.
+        """Remove the entry under `agent_key`, cascading to its runs, agent-runs, and findings.
+
+        All four tables are cleared under one `_write_lock` before a single commit, so the cascade
+        is atomic. `agent_runs` is keyed only by `run_id` (no `agent_key` column), so its rows are
+        deleted via the agent's `runs` before those `runs` rows are removed; `findings` and `runs`
+        each carry their own `agent_key` column and are deleted directly. Existence is reported from
+        the `agents` delete.
 
         Returns:
             True if an entry existed and was removed, False if the id was absent.
         """
         with self._write_lock:
+            self._conn.execute(
+                "DELETE FROM agent_runs WHERE run_id IN "
+                "(SELECT run_id FROM runs WHERE agent_key = ?)",
+                (agent_key,),
+            )
+            self._conn.execute("DELETE FROM findings WHERE agent_key = ?", (agent_key,))
+            self._conn.execute("DELETE FROM runs WHERE agent_key = ?", (agent_key,))
             cursor = self._conn.execute("DELETE FROM agents WHERE agent_key = ?", (agent_key,))
             self._conn.commit()
         return cursor.rowcount > 0
@@ -670,7 +689,8 @@ class AsyncAgentPool:
     async def delete(self, agent_key: AgentKey) -> bool:
         """Remove the entry stored under `agent_key`, off the event loop.
 
-        Delegates to `AgentPool.delete` via `asyncio.to_thread`.
+        Delegates to `AgentPool.delete` via `asyncio.to_thread`, cascading to the agent's runs,
+        agent-runs, and findings atomically.
 
         Returns:
             True if an entry existed and was removed, False if the id was absent.

@@ -26,7 +26,13 @@ from .engine.findings_tool import (
 from .engine.naming import slugify_name
 from .engine.pipeline import AssemblyResult, assemble, generate
 from .engine.pool import AgentPool, AsyncAgentPool, create_agent
-from .engine.render import render_claude_sdk, to_agent_definition, to_options, with_subagents
+from .engine.render import (
+    render_claude_sdk,
+    to_agent_definition,
+    to_options,
+    with_hooks,
+    with_subagents,
+)
 from .engine.run import run_agent
 from .engine.select import SelectedCapabilities, select
 from .engine.source import Candidate, CatalogSource, InMemoryCatalogSource, RecallQuery
@@ -98,6 +104,7 @@ __all__ = [
     "to_options",
     "with_acquire_tool",
     "with_findings_tool",
+    "with_hooks",
     "with_subagents",
     "write_agent",
 ]

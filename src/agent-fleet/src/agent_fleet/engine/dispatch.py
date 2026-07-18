@@ -27,7 +27,7 @@ from ..models.agent import (
 from ..router.capability import CapabilityRouter
 from .findings_tool import grant_findings_to_subagent, with_findings_tool
 from .pool import AgentPool
-from .render import SUBAGENT_TOOL, with_agent_resume, with_subagents
+from .render import SUBAGENT_TOOL, with_agent_resume, with_hooks, with_subagents
 
 _TASK_BRIEF_ADAPTER: TypeAdapter[TaskBrief] = TypeAdapter(TaskBrief)
 
@@ -264,14 +264,17 @@ def prepare_run(
     if entry is None:
         raise KeyError(agent_key)
     run, options = pool.begin_run(entry, task)
+    subagents: dict[AgentName, AgentSpec] = {}
     if subagent_agent_keys:
-        subagents: dict[AgentName, AgentSpec] = {}
         for name, sub_agent_key in subagent_agent_keys.items():
             sub_entry = pool.get_by_key(sub_agent_key)
             if sub_entry is None:
                 raise KeyError(sub_agent_key)
             subagents[name] = sub_entry.spec
         options = with_subagents(options, subagents)
+    # after subagents are wired: session-wide hooks fold the main spec's and every subagent's hooks
+    # into one settings file, written to the pool's own writable state directory
+    options = with_hooks(options, entry.spec, pool.db_path.parent, subagents=subagents)
     options = with_findings_tool(
         options, pool, agent_key, run.run_id, entry.session_id, agent_name=None
     )
