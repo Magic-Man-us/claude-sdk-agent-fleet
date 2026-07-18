@@ -1,4 +1,4 @@
-.PHONY: install fix lint type test check
+.PHONY: install fix lint type test coverage check
 
 install:           ## bootstrap: sync deps + install the git hook
 	uv sync
@@ -17,5 +17,8 @@ type:              ## strict mypy over the source packages (tests are runtime-ve
 
 test:
 	uv run pytest
+
+coverage:           ## test coverage, printed to the terminal
+	uv run pytest --cov --cov-report=term-missing
 
 check: lint type test   ## the full gate

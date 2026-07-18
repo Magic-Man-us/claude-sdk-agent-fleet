@@ -2,15 +2,26 @@
 name = "claude-sdk-agent-fleet"
 dynamic = ["version"]
 description = "Deterministic generator that assembles a minimal Claude Agent SDK agent from a problem statement and a capability corpus, with an HTTP API and MCP pool server."
+readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 authors = [{ name = "Magic-Man-us" }]
+keywords = [
+    "claude",
+    "claude-agent-sdk",
+    "agent",
+    "llm",
+    "mcp",
+    "agent-generation",
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
 dependencies = [
@@ -31,6 +42,7 @@ all = ["claude-sdk-agent-fleet[api]"]
 [project.urls]
 Homepage = "https://github.com/Magic-Man-us/claude-sdk-agent-fleet"
 Repository = "https://github.com/Magic-Man-us/claude-sdk-agent-fleet"
+Issues = "https://github.com/Magic-Man-us/claude-sdk-agent-fleet/issues"
 
 [project.scripts]
 agent-fleet = "agent_fleet.main:main"
