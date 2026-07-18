@@ -23,11 +23,24 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  check:
+  lint:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --extra api --python 3.12
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy src
+
+  test:
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.12", "3.13"]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
@@ -36,13 +49,11 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --extra api --python ${{ matrix.python-version }}
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
-      - run: uv run mypy src
       - run: uv run pytest --cov --cov-report=xml --cov-report=term-missing --junitxml=junit.xml -o junit_family=legacy
       - if: ${{ !cancelled() }}
         uses: codecov/codecov-action@v5
         with:
+          slug: Magic-Man-us/claude-sdk-agent-fleet
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.xml
           flags: python-${{ matrix.python-version }}
@@ -50,6 +61,7 @@ jobs:
       - if: ${{ !cancelled() }}
         uses: codecov/codecov-action@v5
         with:
+          slug: Magic-Man-us/claude-sdk-agent-fleet
           token: ${{ secrets.CODECOV_TOKEN }}
           files: junit.xml
           report_type: test_results
@@ -58,7 +70,7 @@ jobs:
 
   build:
     if: github.event_name == 'release'
-    needs: [secrets-scan, check]
+    needs: [secrets-scan, lint, test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
