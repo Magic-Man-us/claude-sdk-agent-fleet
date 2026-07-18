@@ -5,6 +5,8 @@
 [![License](https://img.shields.io/pypi/l/claude-sdk-agent-fleet)](LICENSE)
 [![CI](https://github.com/Magic-Man-us/claude-sdk-agent-fleet/actions/workflows/publish.yml/badge.svg)](https://github.com/Magic-Man-us/claude-sdk-agent-fleet/actions/workflows/publish.yml)
 [![codecov](https://codecov.io/gh/Magic-Man-us/claude-sdk-agent-fleet/graph/badge.svg)](https://codecov.io/gh/Magic-Man-us/claude-sdk-agent-fleet)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 
 Assembles a minimal Claude Agent SDK agent from a problem statement and a capability corpus, then
 runs and resumes it. The generation path is deterministic — no LLM and no network in it, so the
