@@ -1,6 +1,7 @@
 name: ci
 on:
   push:
+    branches: ["**"] # branches only -- a release's tag push must not also fire this as a push event
   pull_request:
   release:
     types: [published]
