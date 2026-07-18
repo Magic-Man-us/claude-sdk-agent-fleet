@@ -11,8 +11,8 @@ from agent_fleet.engine.source import CatalogSource, InMemoryCatalogSource
 from agent_fleet.models.agent import ProblemRequest
 from agent_fleet.router.capability import CapabilityRouter
 from agent_fleet.settings import AgentFleetSettings
-from capabilities_discovery.catalog import Catalog
-from capabilities_discovery.report import EnvironmentReport
+from capdisc.catalog import Catalog
+from capdisc.report import EnvironmentReport
 
 from .settings import ApiSettings
 

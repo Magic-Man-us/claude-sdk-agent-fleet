@@ -10,7 +10,7 @@ from pathlib import Path
 
 from claude_agent_sdk import ClaudeAgentOptions
 
-from capabilities_discovery.catalog import DEFAULT_RECALL_LIMIT, RecallLimit
+from capdisc.catalog import DEFAULT_RECALL_LIMIT, RecallLimit
 
 from ..models.agent import (
     AgentId,

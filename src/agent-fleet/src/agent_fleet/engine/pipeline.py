@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from capabilities_discovery.base import FrozenModel
+from capdisc.base import FrozenModel
 
 from ..models.agent import AgentSpec, ProblemRequest
 from .compose import compose

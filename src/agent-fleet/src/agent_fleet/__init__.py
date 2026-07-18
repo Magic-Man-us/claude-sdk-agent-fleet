@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from capabilities_discovery.catalog import (
+from capdisc.catalog import (
     Catalog,
     CatalogEntry,
     CatalogMcpServer,
@@ -8,7 +8,7 @@ from capabilities_discovery.catalog import (
     CatalogSkill,
     CatalogTool,
 )
-from capabilities_discovery.discovery import BUILTIN_TOOLS, scan_environment, scan_skills
+from capdisc.discovery import BUILTIN_TOOLS, scan_environment, scan_skills
 
 from .engine.acquire_tool import (
     build_acquire_server,

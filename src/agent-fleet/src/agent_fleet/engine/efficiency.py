@@ -4,7 +4,7 @@ from enum import StrEnum
 
 from pydantic import computed_field
 
-from capabilities_discovery.base import FrozenModel
+from capdisc.base import FrozenModel
 
 from ..models.agent import (
     DEFAULT_SKILL_BUDGET,

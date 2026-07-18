@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from capabilities_discovery.base import FrozenModel
-from capabilities_discovery.catalog import McpServerRef, SkillRef, Tag, ToolRef
-from capabilities_discovery.hooks import HookConfig
+from capdisc.base import FrozenModel
+from capdisc.catalog import McpServerRef, SkillRef, Tag, ToolRef
+from capdisc.hooks import HookConfig
 
 from .thinking import ThinkingConfig
 from .types import (

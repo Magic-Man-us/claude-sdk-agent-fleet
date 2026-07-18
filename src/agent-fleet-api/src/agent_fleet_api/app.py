@@ -13,15 +13,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from agent_fleet.engine.pool import AgentPool, AsyncAgentPool
 from agent_fleet.router.capability import CapabilityRouter
 from agent_fleet.settings import AgentFleetSettings, DiscoveryScope
-from capabilities_discovery.discovery import scan_environment
-from capabilities_discovery.mcp_catalog import enumerate_mcp_servers
-from capabilities_discovery.mcp_harvest import (
+from capdisc.discovery import scan_environment
+from capdisc.mcp_catalog import enumerate_mcp_servers
+from capdisc.mcp_harvest import (
     cache_is_stale,
     read_mcp_cache,
     refresh_in_background,
 )
-from capabilities_discovery.plugin_catalog import enumerate_plugins
-from capabilities_discovery.report import write_report_on_start
+from capdisc.plugin_catalog import enumerate_plugins
+from capdisc.report import write_report_on_start
 
 from .deps import Engine
 from .routes import router
@@ -30,12 +30,12 @@ from .settings import ApiSettings
 
 def _core_settings(settings: ApiSettings) -> AgentFleetSettings:
     class _Core(AgentFleetSettings):
-        # Mirrors the external capabilities_discovery.DiscoverySettings config directory
+        # Mirrors the external capdisc.DiscoverySettings config directory
         # (unaffected by this repo's own agent-generator -> agent-fleet rename), just
         # parametrized by `settings.home_dir` instead of `Path.home()` for testability.
         model_config = {
             **AgentFleetSettings.model_config,
-            "json_file": settings.home_dir / ".claude" / "capabilities-discovery" / "config.json",
+            "json_file": settings.home_dir / ".claude" / "capdisc" / "config.json",
         }
 
     return _Core()

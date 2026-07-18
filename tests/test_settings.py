@@ -6,8 +6,8 @@ from pathlib import Path
 from pydantic_settings import SettingsConfigDict
 
 from agent_fleet.settings import AgentFleetSettings
-from capabilities_discovery.scope import ScopeInventory, ScopeKind, ScopeRoots
-from capabilities_discovery.settings import ExtraSourceDir
+from capdisc.scope import ScopeInventory, ScopeKind, ScopeRoots
+from capdisc.settings import ExtraSourceDir
 from helpers import touch
 
 # ---------------------------------------------------------------------------
@@ -209,10 +209,10 @@ def test_path_defaults_point_at_standard_locations(tmp_path: Path) -> None:
     assert s.plugins_root == Path.home() / ".claude" / "plugins"
     assert s.claude_json == Path.home() / ".claude.json"
     assert s.user_settings == Path.home() / ".claude" / "settings.json"
-    # These two default to a directory owned by the external capabilities_discovery package
+    # These two default to a directory owned by the external capdisc package
     # (DiscoverySettings), unaffected by this repo's agent-generator -> agent-fleet rename.
-    assert s.mcp_cache == Path.home() / ".claude" / "capabilities-discovery" / "mcp-tools.json"
-    assert s.report_dir == Path.home() / ".claude" / "capabilities-discovery"
+    assert s.mcp_cache == Path.home() / ".claude" / "capdisc" / "mcp-tools.json"
+    assert s.report_dir == Path.home() / ".claude" / "capdisc"
     assert s.agent_dir is None  # output targets unset until configured
     assert s.skill_dir is None  # output targets unset until configured
 

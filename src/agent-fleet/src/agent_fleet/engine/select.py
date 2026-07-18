@@ -3,8 +3,8 @@ from __future__ import annotations
 import logging
 from functools import singledispatch
 
-from capabilities_discovery.base import FrozenModel, MutableModel
-from capabilities_discovery.catalog import (
+from capdisc.base import FrozenModel, MutableModel
+from capdisc.catalog import (
     RELEVANCE_THRESHOLD,
     BuiltinTool,
     CatalogMcpServer,

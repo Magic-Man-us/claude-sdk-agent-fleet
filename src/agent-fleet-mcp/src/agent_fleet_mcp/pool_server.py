@@ -27,13 +27,13 @@ from agent_fleet.models.agent import (
 )
 from agent_fleet.router.capability import CapabilityRouter
 from agent_fleet.settings import AgentFleetSettings, current_discovery_scope
-from capabilities_discovery.catalog import (
+from capdisc.catalog import (
     DEFAULT_RECALL_LIMIT,
     CatalogEntryId,
     RecallLimit,
     Tag,
 )
-from capabilities_discovery.discovery import scan_environment
+from capdisc.discovery import scan_environment
 
 mcp = FastMCP("agent-pool")
 

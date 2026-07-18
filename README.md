@@ -17,12 +17,12 @@ Python only. Three workspace members, layered so each depends on the ones below 
 
 ```
 agent_fleet_api ─┐
-                 ├─imports──▶ agent_fleet ──imports──▶ capabilities_discovery
+                 ├─imports──▶ agent_fleet ──imports──▶ capdisc
 agent_fleet_mcp ─┘
 ```
 
 The two front-ends carry the web/MCP dependencies so the engine carries none. Environment scanning
-lives in [capabilities-discovery](https://github.com/Magic-Man-us/capabilities-discovery), a
+lives in [capdisc](https://github.com/Magic-Man-us/capability-discovery), a
 separate repo consumed as a pinned git dependency. That repo is currently private — building this
 workspace requires access to it until it's published separately.
 

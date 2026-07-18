@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from agent_fleet import BUILTIN_TOOLS, scan_environment, scan_skills
-from capabilities_discovery.scope import ScopeRoots
+from capdisc.scope import ScopeRoots
 from helpers import write_skill
 
 _REAL_SKILLS = Path.home() / ".claude" / "skills"

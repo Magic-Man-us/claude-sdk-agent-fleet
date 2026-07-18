@@ -14,8 +14,8 @@ from claude_agent_sdk import (
 )
 from pydantic import TypeAdapter, validate_call
 
-from capabilities_discovery.base import FrozenModel, InputModel
-from capabilities_discovery.catalog import (
+from capdisc.base import FrozenModel, InputModel
+from capdisc.catalog import (
     CatalogEntryId,
     McpServerRef,
     McpTool,

@@ -15,7 +15,7 @@ classifiers = [
 ]
 dependencies = [
     "agent-fleet",
-    "capabilities-discovery",
+    "capdisc",
     "fastmcp>=3.4.2",
 ]
 

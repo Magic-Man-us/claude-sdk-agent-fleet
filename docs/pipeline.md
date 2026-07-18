@@ -76,7 +76,7 @@ description. Same `recall()` contract either way — only the default differs fr
 
 | Stage | Code | In → Out |
 | --- | --- | --- |
-| Scan | `capabilities_discovery.discovery.scan_environment` ([separate repo](https://github.com/Magic-Man-us/capabilities-discovery)) | roots, mcp_servers → `Catalog` (skills + MCP servers) |
+| Scan | `capdisc.discovery.scan_environment` ([separate repo](https://github.com/Magic-Man-us/capability-discovery)) | roots, mcp_servers → `Catalog` (skills + MCP servers) |
 | Query | [engine/pipeline.py](../src/agent-fleet/src/agent_fleet/engine/pipeline.py) `_query` | `ProblemRequest` → `RecallQuery` |
 | Recall | [engine/source.py](../src/agent-fleet/src/agent_fleet/engine/source.py) `InMemoryCatalogSource.recall` | `RecallQuery`, `Catalog` → ranked `Candidate`s (via a `Ranker`: `BM25Ranker` default, or `TwoStageRanker` facet-filter → rerank) |
 | Select | [engine/select.py](../src/agent-fleet/src/agent_fleet/engine/select.py) `select` | `Candidate`s, request → `SelectedCapabilities` (skill clears `RELEVANCE_THRESHOLD` **or** pinned; skills capped at `DEFAULT_SKILL_BUDGET`; tools = `DEFAULT_TOOLS`) |

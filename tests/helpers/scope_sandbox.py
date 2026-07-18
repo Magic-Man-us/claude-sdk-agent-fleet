@@ -17,7 +17,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from capabilities_discovery.scope import ScopeInventory, ScopeRoots, render_inventory
+from capdisc.scope import ScopeInventory, ScopeRoots, render_inventory
 
 # Run as a script; put tests/ on sys.path so the shared `helpers` package resolves under any
 # launcher (uv sets PYTHONSAFEPATH, which drops the automatic script-dir entry).

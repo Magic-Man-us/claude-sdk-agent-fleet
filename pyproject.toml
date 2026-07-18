@@ -13,7 +13,7 @@ dev = [
 agent-fleet = { workspace = true }
 agent-fleet-api = { workspace = true }
 agent-fleet-mcp = { workspace = true }
-capabilities-discovery = { git = "https://github.com/Magic-Man-us/capdisc.git", rev = "bea3f47dff4abf903a3f79431815ecf6ac78c102" }
+capdisc = { git = "https://github.com/Magic-Man-us/capability-discovery.git", rev = "4ad2dbd51cb04ff7fd16e7b9d2d8c47eea168a74" }
 
 [tool.uv.workspace]
 members = [
@@ -67,7 +67,7 @@ ignore = [
 "__init__.py" = ["F401"]                            # re-exports
 
 [tool.ruff.lint.isort]
-known-first-party = ["capabilities_discovery", "agent_fleet", "agent_fleet_api", "agent_fleet_mcp"]
+known-first-party = ["capdisc", "agent_fleet", "agent_fleet_api", "agent_fleet_mcp"]
 
 [tool.ruff.format]
 docstring-code-format = true

@@ -25,9 +25,9 @@ Three Python workspace members plus one external dependency:
 | `agent_fleet` (`src/agent-fleet/`) | the pipeline, the router, the pool, and the agent domain models |
 | `agent_fleet_api` (`src/agent-fleet-api/`) | FastAPI service — catalog, generate, render, orchestrate, pool routes |
 | `agent_fleet_mcp` (`src/agent-fleet-mcp/`) | MCP server exposing the pool as tools (`pool-mcp` console script) |
-| `capabilities_discovery` ([separate repo](https://github.com/Magic-Man-us/capabilities-discovery)) | environment scanning — skills, tools, plugins, MCP servers, hooks — into typed catalogs and a report; also owns the `Catalog`/`CatalogEntry` models and the shared Pydantic presets |
+| `capdisc` ([separate repo](https://github.com/Magic-Man-us/capability-discovery)) | environment scanning — skills, tools, plugins, MCP servers, hooks — into typed catalogs and a report; also owns the `Catalog`/`CatalogEntry` models and the shared Pydantic presets |
 
-`capabilities_discovery` is consumed as a **pinned git dependency** (`{ git = "...", rev = "..." }`
+`capdisc` is consumed as a **pinned git dependency** (`{ git = "...", rev = "..." }`
 in the root `pyproject.toml`). That repo is currently private, so building this workspace requires
 access to it until it's published separately.
 
@@ -86,7 +86,7 @@ format. Full diagram: [docs/pipeline.md](pipeline.md).
 Also: [settings.py](../src/agent-fleet/src/agent_fleet/settings.py) — `AgentFleetSettings(DiscoverySettings)`, adding the agent/skill directories. [main.py](../src/agent-fleet/src/agent_fleet/main.py) — the CLI.
 
 Environment scanning (`scan_environment`, `BUILTIN_TOOLS`, `parse_mcp_servers`), the `Catalog`
-models, and the Pydantic presets (`FrozenModel`, `InputModel`) all live in `capabilities_discovery`
+models, and the Pydantic presets (`FrozenModel`, `InputModel`) all live in `capdisc`
 and are re-exported from `agent_fleet.__init__`.
 
 ## Type system and patterns
@@ -94,7 +94,7 @@ and are re-exported from `agent_fleet.__init__`.
 Pydantic v2 discipline throughout:
 - Domain primitives — no bare `str`/`int` in any model or signature; each is a named `Annotated` alias in a `types.py` carrying constraint + `title`/`description`/`examples`.
 - Discriminated union for catalog entries (`Field(discriminator="kind")`), dispatched on parse.
-- Centralized configs (`FrozenModel`/`InputModel` from `capabilities_discovery.base`); no inline `ConfigDict`.
+- Centralized configs (`FrozenModel`/`InputModel` from `capdisc.base`); no inline `ConfigDict`.
 - Boundary vs interior — `InputModel` only at filesystem/CLI/MCP edges; internals are frozen and strict.
 - `computed_field` for derived output (`EfficiencyReport.passed`).
 - Polymorphic dispatch via `singledispatch` (`select._equip`) and structural `match`; not dict-poking.

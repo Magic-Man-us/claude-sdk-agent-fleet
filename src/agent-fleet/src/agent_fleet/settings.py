@@ -4,10 +4,10 @@ from pathlib import Path
 
 from pydantic import Field
 
-from capabilities_discovery.base import FrozenModel
-from capabilities_discovery.plugin_catalog import installed_plugin_dirs
-from capabilities_discovery.scope import ScopeRoots, default_managed_dir
-from capabilities_discovery.settings import DiscoverySettings
+from capdisc.base import FrozenModel
+from capdisc.plugin_catalog import installed_plugin_dirs
+from capdisc.scope import ScopeRoots, default_managed_dir
+from capdisc.settings import DiscoverySettings
 
 
 class DiscoveryScope(FrozenModel):
@@ -44,7 +44,7 @@ class AgentFleetSettings(DiscoverySettings):
     """Discovery settings plus the generator's output locations.
 
     Inherited fields keep DiscoverySettings' `CAPABILITIES_DISCOVERY_` env prefix, shared
-    across every consumer of capabilities-discovery. This class's own three fields are
+    across every consumer of capdisc. This class's own three fields are
     outside that shared discovery namespace, so each carries an explicit `validation_alias`
     under `AGENT_FLEET_` instead — matching the sibling `AGENT_FLEET_API_`-prefixed ApiSettings.
     """

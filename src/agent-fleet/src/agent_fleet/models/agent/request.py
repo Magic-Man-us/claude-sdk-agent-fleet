@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from capabilities_discovery.base import FrozenModel
-from capabilities_discovery.catalog import CatalogEntryId, Tag
+from capdisc.base import FrozenModel
+from capdisc.catalog import CatalogEntryId, Tag
 
 from .types import (
     DEFAULT_TEAM,

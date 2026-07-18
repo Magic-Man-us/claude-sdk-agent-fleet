@@ -20,7 +20,7 @@ from agent_fleet import (
 from agent_fleet.engine.acquire_tool import ACQUIRE_SERVER, ACQUIRE_TOOL, acquired_agent_key
 from agent_fleet.engine.render import to_agent_definition, to_options
 from agent_fleet.router.capability import CapabilityRouter
-from capabilities_discovery.catalog import CatalogMcpServer, CatalogSkill, CatalogTool, McpTool
+from capdisc.catalog import CatalogMcpServer, CatalogSkill, CatalogTool, McpTool
 from test_dispatch import _assistant, _fake_query
 
 _AGENT_KEY = "PROJ-4821"

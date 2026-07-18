@@ -5,8 +5,8 @@ from collections import Counter
 from math import log
 from typing import Protocol
 
-from capabilities_discovery.base import FrozenModel
-from capabilities_discovery.catalog import (
+from capdisc.base import FrozenModel
+from capdisc.catalog import (
     DEFAULT_RECALL_LIMIT,
     Catalog,
     CatalogEntry,

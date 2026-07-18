@@ -4,20 +4,20 @@ from functools import cache
 
 from fastmcp import FastMCP
 
-from capabilities_discovery.catalog import (
+from capdisc.catalog import (
     CatalogEntryId,
     McpServerRef,
     McpTool,
     RecallLimit,
 )
-from capabilities_discovery.mcp_catalog import enumerate_mcp_servers
-from capabilities_discovery.mcp_harvest import (
+from capdisc.mcp_catalog import enumerate_mcp_servers
+from capdisc.mcp_harvest import (
     cache_is_stale,
     read_mcp_cache,
     refresh_in_background,
 )
-from capabilities_discovery.plugin_catalog import enumerate_plugins
-from capabilities_discovery.report import write_report_on_start
+from capdisc.plugin_catalog import enumerate_plugins
+from capdisc.report import write_report_on_start
 
 from ..models.agent import TaskBrief
 from ..settings import current_discovery_scope

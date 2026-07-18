@@ -6,7 +6,7 @@ from typing import Annotated
 from pydantic import Field
 from pydantic.functional_validators import BeforeValidator
 
-from capabilities_discovery.tokens import token_bounds
+from capdisc.tokens import token_bounds
 
 
 class ModelId(StrEnum):

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pydantic import computed_field
 
-from capabilities_discovery.base import FrozenModel
-from capabilities_discovery.catalog import SkillRef, ToolRef
+from capdisc.base import FrozenModel
+from capdisc.catalog import SkillRef, ToolRef
 
 from .types import AgentName, PromptBody, SectionTag, TaskBrief
 

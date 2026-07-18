@@ -5,7 +5,7 @@ from pathlib import Path
 
 from pydantic import TypeAdapter, ValidationError
 
-from capabilities_discovery.discovery import scan_environment
+from capdisc.discovery import scan_environment
 
 from .engine.emit import write_agent
 from .engine.pipeline import assemble, generate

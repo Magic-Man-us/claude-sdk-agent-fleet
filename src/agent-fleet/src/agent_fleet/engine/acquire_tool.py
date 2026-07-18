@@ -12,7 +12,7 @@ from claude_agent_sdk import (
 from claude_agent_sdk.types import AgentDefinition
 from pydantic import TypeAdapter
 
-from capabilities_discovery.base import InputModel
+from capdisc.base import InputModel
 
 from ..models.agent import AgentKey, AgentSpec, TaskBrief, TemplatedPrompt
 from ..router.capability import CapabilityRouter

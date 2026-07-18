@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from agent_fleet import AgentSpec, EfficiencyConfig, score
-from capabilities_discovery.catalog import SkillRef, ToolRef
+from capdisc.catalog import SkillRef, ToolRef
 
 
 def _spec(tools: list[ToolRef] | None = None, skills: list[SkillRef] | None = None) -> AgentSpec:

@@ -15,7 +15,7 @@ from agent_fleet.engine.source import InMemoryCatalogSource
 from agent_fleet.models.agent import ModelId
 from agent_fleet.router.capability import CapabilityRouter
 from agent_fleet_mcp import pool_server
-from capabilities_discovery.catalog import Catalog
+from capdisc.catalog import Catalog
 from test_dispatch import (
     _assistant,
     _dispatch,

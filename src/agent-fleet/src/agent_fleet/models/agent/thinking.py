@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field
 
-from capabilities_discovery.base import FrozenModel
+from capdisc.base import FrozenModel
 
 
 class ThinkingDisplay(StrEnum):

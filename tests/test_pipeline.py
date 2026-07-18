@@ -11,7 +11,7 @@ from agent_fleet import (
     generate,
 )
 from agent_fleet.engine.select import DEFAULT_TOOLS
-from capabilities_discovery.hooks import HookConfig
+from capdisc.hooks import HookConfig
 
 _PROBLEM = "Summarize the git commit history into grouped changelog entries"
 

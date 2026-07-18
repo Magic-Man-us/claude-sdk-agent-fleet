@@ -6,8 +6,8 @@ from typing import Literal
 
 from pydantic import validate_call
 
-from capabilities_discovery.base import FrozenModel
-from capabilities_discovery.catalog import (
+from capdisc.base import FrozenModel
+from capdisc.catalog import (
     Catalog,
     CatalogEntryId,
     CatalogMcpServer,
@@ -25,8 +25,8 @@ from capabilities_discovery.catalog import (
     Tag,
     ToolRef,
 )
-from capabilities_discovery.discovery import BUILTIN_TOOLS, scan_indexed_skills
-from capabilities_discovery.scope import ScopeRoots
+from capdisc.discovery import BUILTIN_TOOLS, scan_indexed_skills
+from capdisc.scope import ScopeRoots
 
 from ..engine.source import (
     InMemoryCatalogSource,

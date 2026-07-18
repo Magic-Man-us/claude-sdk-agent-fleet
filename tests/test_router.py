@@ -7,8 +7,8 @@ from pydantic import ValidationError
 
 from agent_fleet import CatalogMcpServer, CatalogPlugin
 from agent_fleet.router.capability import MCP_CARD_TOOLS, CapabilityRouter
-from capabilities_discovery.catalog import McpTool
-from capabilities_discovery.scope import ScopeRoots
+from capdisc.catalog import McpTool
+from capdisc.scope import ScopeRoots
 from helpers import write_skill
 
 
@@ -166,7 +166,7 @@ def test_load_skill_rejects_pattern_invalid_id(tmp_path: Path) -> None:
 
 
 def test_describe_mcp_returns_tools_with_input_schema(tmp_path: Path) -> None:
-    from capabilities_discovery.catalog import McpTool
+    from capdisc.catalog import McpTool
 
     schema = {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}
     server = CatalogMcpServer(

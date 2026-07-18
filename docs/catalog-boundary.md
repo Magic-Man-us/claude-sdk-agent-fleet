@@ -8,8 +8,8 @@ There are two distinct capability surfaces in play. They are never crossed.
 | **Run-time** | the emitted orchestrator's | its specialist pool, dispatch targets | the generated agent, at *its* runtime |
 
 The build-time surface is the `CatalogEntry` union, which lives in the external
-[capabilities-discovery](https://github.com/Magic-Man-us/capabilities-discovery) package
-(`capabilities_discovery.catalog`) and is re-exported from `agent_fleet`. The run-time surface is
+[capdisc](https://github.com/Magic-Man-us/capability-discovery) package
+(`capdisc.catalog`) and is re-exported from `agent_fleet`. The run-time surface is
 whatever capability set the generator *emits into* an orchestrator it builds — it is not part of
 agent-fleet's catalog.
 

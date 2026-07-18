@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from agent_fleet import Catalog, CatalogMcpServer, InMemoryCatalogSource, RecallQuery
-from capabilities_discovery.catalog import McpTool
+from capdisc.catalog import McpTool
 
 _BROWSER_QUERY = "drive a browser to automate the web"
 

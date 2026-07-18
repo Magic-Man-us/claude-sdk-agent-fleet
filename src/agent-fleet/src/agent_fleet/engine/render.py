@@ -8,9 +8,9 @@ from typing import cast
 from claude_agent_sdk import ClaudeAgentOptions
 from claude_agent_sdk.types import AgentDefinition, ThinkingConfig
 
-from capabilities_discovery.base import FrozenWireModel
-from capabilities_discovery.catalog import ToolRef
-from capabilities_discovery.hooks import HookConfig, HookEvent, MatcherGroup
+from capdisc.base import FrozenWireModel
+from capdisc.catalog import ToolRef
+from capdisc.hooks import HookConfig, HookEvent, MatcherGroup
 
 from ..models.agent import AgentName, AgentSpec, ModelId
 

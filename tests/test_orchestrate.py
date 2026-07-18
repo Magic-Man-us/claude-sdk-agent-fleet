@@ -16,8 +16,8 @@ from agent_fleet.engine.orchestrate import (
 )
 from agent_fleet.models.agent import AgentSpec
 from agent_fleet.router.capability import CapabilityRouter
-from capabilities_discovery.catalog import CatalogMcpServer, McpTool
-from capabilities_discovery.scope import ScopeRoots
+from capdisc.catalog import CatalogMcpServer, McpTool
+from capdisc.scope import ScopeRoots
 
 
 def _write_skill(root: Path, name: str, body: str) -> None:

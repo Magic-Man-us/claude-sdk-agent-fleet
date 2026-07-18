@@ -28,7 +28,7 @@ def test_catalog_lists_entries(client: TestClient) -> None:
 
 
 def test_report_returns_environment_report(client: TestClient) -> None:
-    from capabilities_discovery.report import EnvironmentReport
+    from capdisc.report import EnvironmentReport
 
     response = client.get("/report")
     assert response.status_code == 200
@@ -36,7 +36,7 @@ def test_report_returns_environment_report(client: TestClient) -> None:
 
 
 def test_report_stashed_on_app_state(client: TestClient) -> None:
-    from capabilities_discovery.report import EnvironmentReport
+    from capdisc.report import EnvironmentReport
 
     assert isinstance(client.app.state.report, EnvironmentReport)
 

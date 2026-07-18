@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Literal
 
 from agent_fleet.models.agent import AgentId, AgentKey, AgentName, TaskBrief
-from capabilities_discovery.base import FrozenModel
+from capdisc.base import FrozenModel
 
 from .types import SdkSource
 

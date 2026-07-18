@@ -9,7 +9,7 @@ from fastmcp import Client
 from agent_fleet import CatalogMcpServer, CatalogPlugin
 from agent_fleet.router import mcp_server
 from agent_fleet.router.capability import CapabilityRouter
-from capabilities_discovery.scope import ScopeRoots
+from capdisc.scope import ScopeRoots
 from helpers import write_skill
 
 

@@ -24,7 +24,7 @@ from agent_fleet.models.agent import (
     PermissionMode,
     ThinkingDisplay,
 )
-from capabilities_discovery.hooks import HookConfig, HookEvent
+from capdisc.hooks import HookConfig, HookEvent
 
 
 def _hooks(event: str, command: str) -> HookConfig:

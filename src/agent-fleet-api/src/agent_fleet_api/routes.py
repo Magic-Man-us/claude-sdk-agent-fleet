@@ -18,8 +18,8 @@ from agent_fleet.models.agent import (
     RunRecord,
     TaskBrief,
 )
-from capabilities_discovery.catalog import DEFAULT_RECALL_LIMIT, Catalog, RecallLimit
-from capabilities_discovery.report import EnvironmentReport
+from capdisc.catalog import DEFAULT_RECALL_LIMIT, Catalog, RecallLimit
+from capdisc.report import EnvironmentReport
 
 from .deps import (
     AuthDep,

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from pydantic import JsonValue
 
-from capabilities_discovery.base import FrozenModel
+from capdisc.base import FrozenModel
 
 from .spec import AgentSpec
 from .types import AgentId, AgentKey, AgentName, FindingContent, RunId, SessionId, TaskBrief
