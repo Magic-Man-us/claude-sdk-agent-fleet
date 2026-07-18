@@ -51,7 +51,7 @@ jobs:
       - run: uv sync --extra api --python ${{ matrix.python-version }}
       - run: uv run pytest --cov --cov-report=xml --cov-report=term-missing --junitxml=junit.xml -o junit_family=legacy
       - if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           slug: Magic-Man-us/claude-sdk-agent-fleet
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -59,7 +59,7 @@ jobs:
           flags: python-${{ matrix.python-version }}
           fail_ci_if_error: false
       - if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           slug: Magic-Man-us/claude-sdk-agent-fleet
           token: ${{ secrets.CODECOV_TOKEN }}
