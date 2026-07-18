@@ -1,12 +1,28 @@
-name: ci
+name: CI & Publish
+
 on:
   push:
     branches: ["**"] # branches only -- a release's tag push must not also fire this as a push event
   pull_request:
   release:
     types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
+  secrets-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # gitleaks scans full history, not just the checked-out commit
+      - name: Scan for secrets
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   check:
     runs-on: ubuntu-latest
     strategy:
@@ -29,6 +45,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.xml
+          flags: python-${{ matrix.python-version }}
           fail_ci_if_error: false
       - if: ${{ !cancelled() }}
         uses: codecov/codecov-action@v5
@@ -36,15 +53,13 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: junit.xml
           report_type: test_results
+          flags: python-${{ matrix.python-version }}
           fail_ci_if_error: false
 
-  publish:
-    needs: check
+  build:
     if: github.event_name == 'release'
+    needs: [secrets-scan, check]
     runs-on: ubuntu-latest
-    environment: pypi
-    permissions:
-      id-token: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -53,4 +68,21 @@ jobs:
         with:
           enable-cache: true
       - run: uv build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
