@@ -29,18 +29,11 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     environment: pypi
-    permissions:
-      id-token: write
     steps:
       - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
-      # Prefer trusted publishing (OIDC, no stored secret) once registered on PyPI; fall back
-      # to the PYPI_API_TOKEN repo secret if trusted publishing isn't set up yet.
-      - if: ${{ secrets.PYPI_API_TOKEN == '' }}
-        uses: pypa/gh-action-pypi-publish@release/v1
-      - if: ${{ secrets.PYPI_API_TOKEN != '' }}
-        uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
