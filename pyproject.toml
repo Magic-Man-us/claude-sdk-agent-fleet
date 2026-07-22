@@ -112,6 +112,7 @@ ignore = [
 "tests/api/**" = ["S101", "PLR2004", "ARG", "PLC0415"]
 "tests/mcp/**" = ["S101", "PLR2004", "ARG", "PLC0415"]
 "src/agent_fleet_api/**" = ["S101"]
+"src/agent_fleet/runtime/pool.py" = ["PLR2004"]
 "__init__.py" = ["F401"]
 
 [tool.ruff.lint.isort]
