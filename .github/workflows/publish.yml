@@ -31,23 +31,7 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --extra api --python 3.12
-      - name: Run Ruff
-        id: ruff
-        continue-on-error: true
-        run: uv run ruff check . --output-format=concise > ruff.log 2>&1
-      - name: Upload Ruff diagnostics
-        if: steps.ruff.outcome == 'failure'
-        uses: actions/upload-artifact@v7
-        with:
-          name: ruff-diagnostics
-          path: ruff.log
-          if-no-files-found: error
-          retention-days: 1
-      - name: Fail after preserving Ruff diagnostics
-        if: steps.ruff.outcome == 'failure'
-        run: |
-          cat ruff.log
-          exit 1
+      - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy src
 
