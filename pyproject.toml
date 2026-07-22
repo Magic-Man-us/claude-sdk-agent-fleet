@@ -25,19 +25,19 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "capdisc",
     "claude-agent-sdk>=0.2.108,<0.3",
     "fastmcp>=3.4.2",
     "pydantic>=2.7",
 ]
 
 [project.optional-dependencies]
+discovery = ["capdisc"]
 api = [
     "fastapi>=0.115",
     "pydantic-settings>=2.4",
     "uvicorn[standard]>=0.30",
 ]
-all = ["claude-sdk-agent-fleet[api]"]
+all = ["claude-sdk-agent-fleet[api,discovery]"]
 
 [project.urls]
 Homepage = "https://github.com/Magic-Man-us/claude-sdk-agent-fleet"
@@ -63,6 +63,7 @@ packages = ["src/agent_fleet", "src/agent_fleet_api", "src/agent_fleet_mcp"]
 
 [dependency-groups]
 dev = [
+    "capdisc",
     "mypy>=2.1.0",
     "pytest>=8",
     "pytest-cov>=5",
@@ -82,37 +83,36 @@ src = ["tests", "src"]
 
 [tool.ruff.lint]
 select = [
-    "E", "W",    # pycodestyle
-    "F",         # pyflakes
-    "I",         # isort
-    "N",         # pep8-naming
-    "UP",        # pyupgrade
-    "B",         # bugbear
-    "A",         # builtin shadowing
-    "C4",        # comprehensions
-    "DTZ",       # naive datetimes
-    "SIM",       # simplify
-    "PTH",       # use pathlib
-    "RET",       # return hygiene
-    "TRY",       # exception antipatterns
-    "S",         # bandit security
-    "ARG",       # unused arguments
-    "PL",        # pylint subset
-    "RUF",       # ruff-specific
+    "E", "W",
+    "F",
+    "I",
+    "N",
+    "UP",
+    "B",
+    "A",
+    "C4",
+    "DTZ",
+    "SIM",
+    "PTH",
+    "RET",
+    "TRY",
+    "S",
+    "ARG",
+    "PL",
+    "RUF",
 ]
 ignore = [
-    "TRY003",    # long messages in raise; noisy
-    "PLR0913",   # too many args; Pydantic/FastAPI signatures trip this
-    "RUF012",    # mutable class defaults — Pydantic copies field defaults per instance; ClassVar is wrong for a field
+    "TRY003",
+    "PLR0913",
+    "RUF012",
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# asserts, exec of generated code, magic values, fixtures, local imports
 "tests/**" = ["S101", "S102", "PLR2004", "ARG", "PLC0415"]
 "tests/api/**" = ["S101", "PLR2004", "ARG", "PLC0415"]
 "tests/mcp/**" = ["S101", "PLR2004", "ARG", "PLC0415"]
-"src/agent_fleet_api/**" = ["S101"]  # assert isinstance(...) narrows FastAPI app.state
-"__init__.py" = ["F401"]                            # re-exports
+"src/agent_fleet_api/**" = ["S101"]
+"__init__.py" = ["F401"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["capdisc", "agent_fleet", "agent_fleet_api", "agent_fleet_mcp"]
