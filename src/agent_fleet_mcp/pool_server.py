@@ -118,7 +118,12 @@ def _ensure_teammate(name: AgentName, *, fresh_session: bool = False) -> PoolEnt
 
 def _notify_hooks() -> HookConfig | None:
     """The Stop-notification hook for teammate runs, from `AGENT_FLEET_NOTIFY_COMMAND`; None
-    when unconfigured."""
+    when unconfigured.
+
+    Deliberately NOT `@cache`d unlike the sibling accessors above: the env var must be re-read on
+    every run, not frozen at first use — a cached `HookConfig` would also survive across the
+    `monkeypatch.setenv` calls the tests use to toggle it.
+    """
     command = AgentFleetSettings().notify_command
     if command is None:
         return None
@@ -271,6 +276,11 @@ def find_agents(query: TaskBrief, limit: RecallLimit = DEFAULT_RECALL_LIMIT) -> 
 def delete_agent(agent_key: AgentKey) -> bool:
     """Remove the pooled entry stored under `agent_key`.
 
+    This is also the legitimate dismissal path for a teammate: deleting its `teammate.*` entry
+    discards its standing conversation, and the next `spawn_teammate`/`message_teammate` call
+    re-creates it fresh from its roster template. No guard against the teammate namespace here —
+    unlike `create_agent`/`run_agent`, dismissal is intentional deletion, not accidental bypass.
+
     Args:
         agent_key: The agent key to remove.
 
@@ -380,9 +390,15 @@ async def run_agent(
         — when produced — the terminal result's structured output and total cost.
 
     Raises:
-        ValueError: When `agent_key` has no pool entry, or when any named `subagent_agent_keys`
-            entry has no pool entry.
+        ValueError: When `agent_key` falls under the reserved teammate namespace, when it has no
+            pool entry, or when any named `subagent_agent_keys` entry has no pool entry.
     """
+    if agent_key.startswith(TEAMMATE_KEY_PREFIX):
+        raise ValueError(
+            f"agent keys under {TEAMMATE_KEY_PREFIX!r} are reserved for the teammate surface; "
+            "running one through run_agent bypasses the background-run registry (a live run "
+            "would read as stale) and skips the notify hook — use spawn_teammate/message_teammate"
+        )
     pool = _pool()
     try:
         run, options, prompt = prepare_run(

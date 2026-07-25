@@ -80,6 +80,11 @@ def test_create_agent_rejects_the_teammate_key_namespace(pool: AgentPool) -> Non
         pool_server.create_agent("teammate.reviewer", _TASK)
 
 
+def test_run_agent_rejects_the_teammate_key_namespace(pool: AgentPool) -> None:
+    with pytest.raises(ValueError, match="reserved"):
+        asyncio.run(pool_server.run_agent("teammate.reviewer", _TASK))
+
+
 def test_list_and_find(pool: AgentPool) -> None:
     pool_server.create_agent(_AGENT_KEY, _TASK)
     pool_server.create_agent(_SUB_AGENT_KEY, _SUB_TASK)
