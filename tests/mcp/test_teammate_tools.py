@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -10,7 +11,7 @@ from agent_fleet import AgentPool
 from agent_fleet.engine.render import SEND_MESSAGE_TOOL
 from agent_fleet.engine.source import InMemoryCatalogSource
 from agent_fleet.engine.teammates import ROSTER
-from agent_fleet.models.agent import TeammateRunStatus, teammate_key
+from agent_fleet.models.agent import RUN_ERROR_MAX, TeammateRunStatus, teammate_key
 from agent_fleet.router.capability import CapabilityRouter
 from agent_fleet_mcp import pool_server
 from agent_fleet_mcp.runner import TeammateRunner
@@ -172,6 +173,44 @@ def test_spawn_failure_marks_run_failed(pool: AgentPool, monkeypatch: pytest.Mon
         assert failed.status is TeammateRunStatus.failed
         assert failed.error is not None
         assert "boom mid-stream" in failed.error
+
+    asyncio.run(scenario())
+
+
+def test_spawn_failure_with_overlong_text_is_bounded_on_write(
+    pool: AgentPool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        entry = pool_server._ensure_teammate(_NAME)
+        overlong_message = "x" * (RUN_ERROR_MAX + 500)
+
+        async def raising(**kwargs: object) -> object:
+            yield _assistant("partial", session_id=entry.session_id)
+            raise RuntimeError(overlong_message)
+
+        monkeypatch.setattr("agent_fleet.engine.dispatch.query", raising)
+
+        status = await pool_server.spawn_teammate(_NAME, _TASK)
+        assert status.status is TeammateRunStatus.running
+
+        await pool_server._runner().wait_all()
+
+        failed = pool_server.check_teammate(_NAME)
+        assert failed.status is TeammateRunStatus.failed
+        assert failed.error is not None
+        assert len(failed.error) <= RUN_ERROR_MAX
+        run_id = failed.run_id
+        assert run_id is not None
+
+        # the row itself must already be bounded on write -- proves the write path validated
+        # rather than relying solely on RunError's read-path truncation to mask an over-long value
+        conn = sqlite3.connect(pool.db_path)
+        stored = conn.execute("SELECT error FROM runs WHERE run_id = ?", (run_id,)).fetchone()[0]
+        conn.close()
+        assert len(stored) <= RUN_ERROR_MAX
+
+        assert pool.get_run(run_id) is not None
+        assert pool.list_runs(teammate_key(_NAME))[0].run_id == run_id
 
     asyncio.run(scenario())
 

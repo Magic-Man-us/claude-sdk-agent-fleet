@@ -20,7 +20,7 @@ from agent_fleet import (
     slugify_name,
 )
 from agent_fleet.engine.render import to_options
-from agent_fleet.models.agent import AgentName, ProblemRequest
+from agent_fleet.models.agent import RUN_ERROR_MAX, AgentName, ProblemRequest
 
 _PROMPT = "You are auditor. Audit the code for vulnerabilities and stop."
 _AGENT_KEY = "PROJ-4821"
@@ -538,6 +538,25 @@ def test_finish_run_persists_error(tmp_path: Path) -> None:
     assert finished.error == "RuntimeError: boom"
     assert finished.output is None
     assert pool.get_run(run.run_id) == finished
+
+
+def test_finish_run_with_overlong_error_reads_back_truncated(tmp_path: Path) -> None:
+    # finish_run itself doesn't validate (a plain function, not @validate_call) — this simulates
+    # an over-long value already committed before RUN_ERROR_MAX was enforced on the write path,
+    # and checks that reading it back self-heals via RunError's truncating BeforeValidator rather
+    # than raising ValidationError out of get_run/list_runs.
+    pool = AgentPool(tmp_path / "pool.db")
+    entry = pool.save("PROJ-OVERLONG", _spec())
+    run = pool.start_run(entry.agent_key, "finish this run with an over-long error message")
+    overlong = "x" * (RUN_ERROR_MAX + 500)
+
+    pool.finish_run(run.run_id, error=overlong)
+
+    reread = pool.get_run(run.run_id)
+    assert reread is not None
+    assert reread.error is not None
+    assert len(reread.error) == RUN_ERROR_MAX
+    assert pool.list_runs(entry.agent_key)[0].error == reread.error
 
 
 def test_opening_a_pre_outcome_schema_migrates_it(tmp_path: Path) -> None:

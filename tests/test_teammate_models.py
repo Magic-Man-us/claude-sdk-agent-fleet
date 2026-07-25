@@ -4,8 +4,10 @@ import pytest
 from pydantic import TypeAdapter, ValidationError
 
 from agent_fleet.models.agent import (
+    RUN_ERROR_MAX,
     AgentKey,
     CostUsd,
+    RunError,
     RunOutput,
     TeammateRunStatus,
     TeammateTemplate,
@@ -18,6 +20,7 @@ _TOOLKIT_NAME = TypeAdapter(ToolkitName)
 _COST = TypeAdapter(CostUsd)
 _OUTPUT = TypeAdapter(RunOutput)
 _AGENT_KEY = TypeAdapter(AgentKey)
+_RUN_ERROR = TypeAdapter(RunError)
 
 
 def test_toolkit_name_accepts_slug_and_rejects_uppercase() -> None:
@@ -34,6 +37,18 @@ def test_cost_rejects_negative() -> None:
 
 def test_run_output_accepts_text() -> None:
     assert _OUTPUT.validate_python("done") == "done"
+
+
+def test_run_error_truncates_overlong_text() -> None:
+    overlong = "x" * (RUN_ERROR_MAX + 500)
+    truncated = _RUN_ERROR.validate_python(overlong)
+    assert len(truncated) == RUN_ERROR_MAX
+    assert truncated == "x" * RUN_ERROR_MAX
+
+
+def test_run_error_rejects_empty() -> None:
+    with pytest.raises(ValidationError):
+        _RUN_ERROR.validate_python("")
 
 
 def test_teammate_key_is_a_valid_agent_key() -> None:

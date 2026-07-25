@@ -82,6 +82,7 @@ TASK_TOKEN_MAX = 2400
 PROMPT_TOKEN_MAX = 6000
 PROMPT_MIN = 40
 PROMPT_MAX = 20000
+RUN_ERROR_MAX = 20000
 
 _DESCRIPTION_SUMMARY_MAX = 200
 
@@ -89,6 +90,14 @@ _DESCRIPTION_SUMMARY_MAX = 200
 def _summarize(text: str) -> str:
     """Collapse whitespace and cap length so a long task brief fits AgentDescription."""
     return " ".join(text.split())[:_DESCRIPTION_SUMMARY_MAX]
+
+
+def _truncate_run_error(value: object) -> object:
+    """Cap a run's captured exception text at `RUN_ERROR_MAX` so an over-long value truncates
+    instead of failing validation — this makes the read path self-heal a value stored before this
+    bound was enforced on write. Non-str input passes through untouched so Pydantic's own type
+    check still raises."""
+    return value[:RUN_ERROR_MAX] if isinstance(value, str) else value
 
 
 AgentName = Annotated[
@@ -259,11 +268,13 @@ CostUsd = Annotated[
 ]
 RunError = Annotated[
     str,
+    BeforeValidator(_truncate_run_error),
     Field(
         min_length=1,
-        max_length=20000,
+        max_length=RUN_ERROR_MAX,
         title="Run error",
-        description="The captured exception text of a failed run.",
+        description="The captured exception text of a failed run; text over "
+        f"{RUN_ERROR_MAX} characters is truncated to that bound.",
     ),
 ]
 FreshSession = Annotated[

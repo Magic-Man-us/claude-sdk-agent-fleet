@@ -4,6 +4,7 @@ from collections.abc import Coroutine
 from functools import cache
 
 from fastmcp import FastMCP
+from pydantic import TypeAdapter
 
 from agent_fleet.engine.dispatch import prepare_run, run_with_capture
 from agent_fleet.engine.pool import AgentPool
@@ -25,6 +26,7 @@ from agent_fleet.models.agent import (
     ProblemRequest,
     PromptBody,
     RosterEntry,
+    RunError,
     RunId,
     RunOutcome,
     RunRecord,
@@ -48,6 +50,8 @@ from capdisc.hooks import CommandHook, HookConfig, HookEvent, MatcherGroup
 from .runner import TeammateRunner, run_status
 
 mcp = FastMCP("agent-pool")
+
+_RUN_ERROR_ADAPTER: TypeAdapter[RunError] = TypeAdapter(RunError)
 
 
 @cache
@@ -138,11 +142,18 @@ async def _record_failure(run_id: RunId, coro: Coroutine[object, object, RunOutc
     `run_status` would report it `stale` rather than surfacing the failure. This wraps every
     dispatched run (background and `wait=True` alike) so a raised run is still visible via
     `check_teammate`.
+
+    The composed message is validated through `RunError` before it reaches `finish_run` —
+    `finish_run` itself is a plain function, so its `RunError` parameter annotation does not
+    enforce anything on the way in. Bounding it here means the stored value is already within
+    `RunError`'s length limit, matching what its own truncating validator would produce on read —
+    write and read cannot disagree.
     """
     try:
         return await coro
     except Exception as exc:
-        _pool().finish_run(run_id, error=f"{type(exc).__name__}: {exc}")
+        error = _RUN_ERROR_ADAPTER.validate_python(f"{type(exc).__name__}: {exc}")
+        _pool().finish_run(run_id, error=error)
         raise
 
 
