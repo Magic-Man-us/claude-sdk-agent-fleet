@@ -7,6 +7,7 @@ from agent_fleet.engine.emit import write_agent
 from agent_fleet.engine.orchestrate import OrchestrateOutcome, collect_orchestration
 from agent_fleet.engine.pipeline import AssemblyResult, generate
 from agent_fleet.models.agent import (
+    TEAMMATE_KEY_PREFIX,
     AgentKey,
     AgentRunRecord,
     AgentSpec,
@@ -32,6 +33,24 @@ from .deps import (
 from .models import Health, OrchestrateRequest, PoolRunRequest, RenderedAgent
 
 router = APIRouter()
+
+
+def _reject_teammate_namespace(agent_key: AgentKey) -> None:
+    """Raise 409 when `agent_key` falls under the reserved teammate namespace — the HTTP mirror
+    of the MCP `create_agent`/`run_agent` guards. `pool.db` is shared with the MCP pool server;
+    without this, the HTTP surface could overwrite a teammate's entry, or run one through a path
+    that bypasses the background-run registry (a live run would read as `stale`) and skips the
+    Stop-notification hook.
+
+    Raises:
+        HTTPException: 409, when `agent_key` is reserved.
+    """
+    if agent_key.startswith(TEAMMATE_KEY_PREFIX):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"agent keys under {TEAMMATE_KEY_PREFIX!r} are reserved for the teammate "
+            "surface; use the MCP spawn_teammate/message_teammate tools instead",
+        )
 
 
 @router.get("/healthz")
@@ -84,7 +103,12 @@ async def save_pool_entry(
     reset_session: bool = False,
 ) -> PoolEntry:
     """Assemble an agent for the problem and store it in the pool under `agent_key`, returning the
-    stored entry. `reset_session=True` mints a fresh session UUID even when the id exists."""
+    stored entry. `reset_session=True` mints a fresh session UUID even when the id exists.
+
+    Raises:
+        HTTPException: 409, when `agent_key` falls under the reserved teammate namespace.
+    """
+    _reject_teammate_namespace(agent_key)
     return await pool.create_agent(agent_key, request, engine.source, reset_session=reset_session)
 
 
@@ -159,7 +183,12 @@ async def run_pool_entry(
     findings-writer (`with_findings_tool`) and dynamic capability acquisition
     (`with_acquire_tool`), matching an MCP-triggered run. `request.resume_agent_id`, when set,
     continues one specific previously-dispatched subagent via `with_agent_resume` and
-    `build_resume_prompt`. Requires the claude CLI at runtime."""
+    `build_resume_prompt`. Requires the claude CLI at runtime.
+
+    Raises:
+        HTTPException: 409, when `agent_key` falls under the reserved teammate namespace.
+    """
+    _reject_teammate_namespace(agent_key)
     try:
         run, options, prompt = prepare_run(
             pool.pool,

@@ -165,6 +165,20 @@ def pool_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Tes
 _SAVE_BODY = {"task": "read log files and summarize errors", "name": "log-summarizer"}
 
 
+def test_pool_save_rejects_the_teammate_key_namespace(pool_client: TestClient) -> None:
+    response = pool_client.post("/pool/teammate.reviewer", json=_SAVE_BODY)
+    assert response.status_code == 409
+    assert "reserved" in response.json()["detail"]
+
+
+def test_pool_run_rejects_the_teammate_key_namespace(pool_client: TestClient) -> None:
+    response = pool_client.post(
+        "/pool/teammate.reviewer/run", json={"task": "read the logs and report now"}
+    )
+    assert response.status_code == 409
+    assert "reserved" in response.json()["detail"]
+
+
 def test_pool_save_get_list_find_delete(pool_client: TestClient) -> None:
     saved = pool_client.post("/pool/INC-1", json=_SAVE_BODY)
     assert saved.status_code == 200
