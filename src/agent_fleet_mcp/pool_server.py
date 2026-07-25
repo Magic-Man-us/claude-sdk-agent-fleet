@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Coroutine
 from functools import cache
 
@@ -51,6 +52,8 @@ from capdisc.discovery import scan_environment
 from capdisc.hooks import CommandHook, HookConfig, HookEvent, MatcherGroup
 
 from .runner import TeammateRunner, run_status
+
+logger = logging.getLogger(__name__)
 
 mcp = FastMCP("agent-pool")
 
@@ -156,12 +159,23 @@ async def _record_failure(run_id: RunId, coro: Coroutine[object, object, RunOutc
     exception, not whatever text the stream had already produced. Capturing partial output would
     require `run_with_capture` itself to stamp its own failure path (it already collects `parts` as
     it streams); deliberately not done here.
+
+    The teammate's entry can be dismissed (`delete_agent`) while its run is still live — deleting
+    it cascades to its `runs` row, so `finish_run` below finds nothing to stamp and raises its own
+    `KeyError`. That would otherwise replace the run's real failure as this task's terminal
+    exception (Python's implicit exception chaining keeps the original in `__context__`, but the
+    propagating exception — and what `check_teammate`/log tooling see as `task.exception()` — would
+    be the `KeyError`, not the actual reason the run failed). Caught and logged here instead;
+    `finish_run`'s own `KeyError` contract for a genuinely-unknown run id is unchanged elsewhere.
     """
     try:
         return await coro
     except Exception as exc:
         error = _RUN_ERROR_ADAPTER.validate_python(f"{type(exc).__name__}: {exc}")
-        _pool().finish_run(run_id, error=error)
+        try:
+            _pool().finish_run(run_id, error=error)
+        except KeyError:
+            logger.exception("teammate run %s: row deleted while live — failure unrecorded", run_id)
         raise
 
 
@@ -297,6 +311,8 @@ def delete_agent(agent_key: AgentKey) -> bool:
     discards its standing conversation, and the next `spawn_teammate`/`message_teammate` call
     re-creates it fresh from its roster template. No guard against the teammate namespace here —
     unlike `create_agent`/`run_agent`, dismissal is intentional deletion, not accidental bypass.
+    Dismissing a teammate with a live run discards that run's record along with the entry, and the
+    still-running background task dies unrecorded when it eventually finishes or fails.
 
     Args:
         agent_key: The agent key to remove.
@@ -456,9 +472,10 @@ def check_teammate(name: TeammateName) -> TeammateStatus:
     """The teammate's latest-run status; persisted output/structured output/cost once finished,
     or its captured error once failed.
 
-    `stale` means an unfinished run this server process doesn't own (it died mid-run) — the
-    session itself is intact, so `message_teammate` resumes the conversation. `failed` means the
-    run raised; its text is on `TeammateStatus.error`.
+    `stale` means an unfinished run this server process doesn't own — this process died mid-run,
+    or another process is running it (`pool.db` can be shared) — the session itself is intact, so
+    `message_teammate` resumes the conversation. `failed` means the run raised; its text is on
+    `TeammateStatus.error`.
 
     Args:
         name: The teammate to check; valid names come from `roster()`.

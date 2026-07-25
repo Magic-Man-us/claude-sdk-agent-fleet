@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import sqlite3
 from pathlib import Path
 
@@ -249,6 +250,44 @@ def test_message_wait_raises_and_marks_run_failed(
         assert failed.status is TeammateRunStatus.failed
         assert failed.error is not None
         assert "boom mid-stream" in failed.error
+
+    asyncio.run(scenario())
+
+
+def test_delete_mid_run_preserves_original_failure_and_logs_the_deletion(
+    pool: AgentPool, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    async def scenario() -> None:
+        pool_server._ensure_teammate(_NAME)
+        release = asyncio.Event()
+
+        async def gated(**kwargs: object) -> object:
+            await release.wait()
+            raise RuntimeError("boom after deletion")
+            yield  # pragma: no cover - unreachable; keeps this an async generator
+
+        monkeypatch.setattr("agent_fleet.engine.dispatch.query", gated)
+
+        status = await pool_server.spawn_teammate(_NAME, _TASK)
+        assert status.run_id is not None
+        task_handle = pool_server._runner().task_for(status.run_id)
+        assert task_handle is not None
+
+        assert pool.delete(teammate_key(_NAME))  # dismiss the teammate while its run is live
+
+        with caplog.at_level(logging.ERROR):
+            release.set()
+            await asyncio.gather(task_handle, return_exceptions=True)
+
+        # the run's real failure survives as the task's terminal exception, not masked by the
+        # finish_run KeyError raised when the row it tries to stamp no longer exists
+        exc = task_handle.exception()
+        assert isinstance(exc, RuntimeError)
+        assert "boom after deletion" in str(exc)
+        assert "row deleted while live" in caplog.text
+
+        final = pool_server.check_teammate(_NAME)
+        assert final.status is TeammateRunStatus.unspawned
 
     asyncio.run(scenario())
 
