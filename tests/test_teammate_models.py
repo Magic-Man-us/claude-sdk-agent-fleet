@@ -58,5 +58,9 @@ def test_toolkit_requires_valid_entries() -> None:
 
 def test_status_enum_members() -> None:
     assert {s.value for s in TeammateRunStatus} == {
-        "unspawned", "idle", "running", "finished", "stale",
+        "unspawned",
+        "idle",
+        "running",
+        "finished",
+        "stale",
     }
