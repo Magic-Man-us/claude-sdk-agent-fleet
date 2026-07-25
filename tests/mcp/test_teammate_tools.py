@@ -117,3 +117,30 @@ def test_message_wait_returns_finished_status(
         assert revived is not None and revived.session_id == entry.session_id
 
     asyncio.run(scenario())
+
+
+def test_notify_command_folds_a_stop_hook_into_settings(
+    pool: AgentPool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("AGENT_FLEET_NOTIFY_COMMAND", "notify-send teammate-done")
+
+    async def scenario() -> None:
+        pool_server._ensure_teammate(_NAME)
+        entry = pool.get_by_key(teammate_key(_NAME))
+        assert entry is not None
+        captured: list[object] = []
+
+        async def capturing(**kwargs: object):
+            captured.append(kwargs["options"])
+            yield _assistant("ok then", session_id=entry.session_id)
+
+        monkeypatch.setattr("agent_fleet.engine.dispatch.query", capturing)
+        await pool_server.message_teammate(_NAME, _TASK, wait=True)
+
+        options = captured[0]
+        assert options.settings is not None
+        text = Path(options.settings).read_text(encoding="utf-8")
+        assert '"Stop"' in text
+        assert "notify-send teammate-done" in text
+
+    asyncio.run(scenario())

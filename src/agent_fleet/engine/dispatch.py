@@ -14,6 +14,8 @@ from claude_agent_sdk import (
 )
 from pydantic import JsonValue, TypeAdapter
 
+from capdisc.hooks import HookConfig
+
 from ..models.agent import (
     AgentId,
     AgentKey,
@@ -227,6 +229,7 @@ def prepare_run(
     *,
     subagent_agent_keys: dict[AgentName, AgentKey] | None = None,
     resume_agent_id: AgentId | None = None,
+    extra_hooks: HookConfig | None = None,
 ) -> tuple[RunRecord, ClaudeAgentOptions, TaskBrief | None]:
     """Start a run and assemble its fully-wired live options, ready to hand to `run_with_capture`.
 
@@ -253,6 +256,8 @@ def prepare_run(
             subagents; None or empty runs the agent solo.
         resume_agent_id: When set, resume this specific previously-dispatched subagent — grant
             `with_agent_resume` and wrap `task` as the resume turn while still recording `task`.
+        extra_hooks: A caller-supplied hook config folded into the run's settings file alongside
+            the main spec's and any subagents' own hooks — e.g. the teammate Stop-notification.
 
     Returns:
         The started run record, the fully-wired live options, and the literal prompt to send (None
@@ -279,7 +284,9 @@ def prepare_run(
         options = with_subagents(options, subagents)
     # after subagents are wired: session-wide hooks fold the main spec's and every subagent's hooks
     # into one settings file, written to the pool's own writable state directory
-    options = with_hooks(options, entry.spec, pool.db_path.parent, subagents=subagents)
+    options = with_hooks(
+        options, entry.spec, pool.db_path.parent, subagents=subagents, extra=extra_hooks
+    )
     options = with_findings_tool(
         options, pool, agent_key, run.run_id, entry.session_id, agent_name=None
     )

@@ -195,6 +195,7 @@ def with_hooks(
     directory: Path,
     *,
     subagents: Mapping[AgentName, AgentSpec] | None = None,
+    extra: HookConfig | None = None,
 ) -> ClaudeAgentOptions:
     """Augment already-built options to load the main spec's (and any subagents') declarative hooks.
 
@@ -215,13 +216,18 @@ def with_hooks(
         directory: The directory the merged settings file is written to; created when missing.
         subagents: The dispatchable subagents whose own hooks fold into the same file; None or empty
             means the main spec's hooks alone.
+        extra: A caller-supplied hook config — e.g. the teammate Stop-notification — folded into
+            the same settings file as the specs' own hooks.
 
     Returns:
         A copy of `options` with `settings` pointed at the written file, or `options` unchanged when
         there are no hooks to load.
     """
     specs = [spec, *(subagents.values() if subagents is not None else ())]
-    merged = _merge_hook_configs(s.hooks for s in specs if s.hooks is not None)
+    configs = [s.hooks for s in specs if s.hooks is not None]
+    if extra is not None:
+        configs.append(extra)
+    merged = _merge_hook_configs(configs)
     if merged is None:
         return options
     directory.mkdir(parents=True, exist_ok=True)

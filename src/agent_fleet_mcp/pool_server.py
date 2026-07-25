@@ -39,6 +39,7 @@ from capdisc.catalog import (
     Tag,
 )
 from capdisc.discovery import scan_environment
+from capdisc.hooks import CommandHook, HookConfig, HookEvent, MatcherGroup
 
 from .runner import TeammateRunner, run_status
 
@@ -109,6 +110,15 @@ def _ensure_teammate(name: AgentName, *, fresh_session: bool = False) -> PoolEnt
     return pool_create_agent(
         key, template_request(template), _source(), _pool(), reset_session=fresh_session
     )
+
+
+def _notify_hooks() -> HookConfig | None:
+    """The Stop-notification hook for teammate runs, from `AGENT_FLEET_NOTIFY_COMMAND`; None
+    when unconfigured."""
+    command = AgentFleetSettings().notify_command
+    if command is None:
+        return None
+    return HookConfig({HookEvent.stop: [MatcherGroup(hooks=[CommandHook(command=command)])]})
 
 
 def _teammate_status(name: AgentName, entry: PoolEntry | None) -> TeammateStatus:
@@ -400,7 +410,9 @@ async def spawn_teammate(
     runs = _pool().list_runs(key)
     if runs and run_status(runs[0], _runner()) is TeammateRunStatus.running:
         return _teammate_status(name, entry)
-    run, options, prompt = prepare_run(_pool(), _capability_router(), key, task)
+    run, options, prompt = prepare_run(
+        _pool(), _capability_router(), key, task, extra_hooks=_notify_hooks()
+    )
     _runner().spawn(
         run.run_id,
         run_with_capture(_pool(), key, task, options, run=run, prompt=prompt),
@@ -426,7 +438,12 @@ async def message_teammate(
     entry = _ensure_teammate(name)
     key = entry.agent_key
     run, options, prompt = prepare_run(
-        _pool(), _capability_router(), key, task, resume_agent_id=resume_agent_id
+        _pool(),
+        _capability_router(),
+        key,
+        task,
+        resume_agent_id=resume_agent_id,
+        extra_hooks=_notify_hooks(),
     )
     coro = run_with_capture(_pool(), key, task, options, run=run, prompt=prompt)
     if wait:

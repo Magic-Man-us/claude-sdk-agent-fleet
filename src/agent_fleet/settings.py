@@ -64,6 +64,11 @@ class AgentFleetSettings(DiscoverySettings):
         description="SQLite database backing the pool of named, resumable agent sessions.",
         validation_alias="AGENT_FLEET_POOL_DB",
     )
+    notify_command: str | None = Field(
+        default=None,
+        description="Shell command a Stop hook runs when a teammate run finishes; None disables.",
+        validation_alias="AGENT_FLEET_NOTIFY_COMMAND",
+    )
 
     def discovery_scope(
         self,
