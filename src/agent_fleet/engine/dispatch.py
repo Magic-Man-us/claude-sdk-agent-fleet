@@ -204,7 +204,12 @@ async def run_with_capture(
                 main_recorded = True
                 if expected_session is not None and session_id != expected_session:
                     pool.reconcile_session(agent_key, session_id)
-    finished = pool.finish_run(run.run_id)
+    finished = pool.finish_run(
+        run.run_id,
+        output="\n".join(parts),
+        structured_output=structured_output,
+        total_cost_usd=total_cost_usd,
+    )
     return RunOutcome(
         output="\n".join(parts),
         run=finished,

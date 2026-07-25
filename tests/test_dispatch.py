@@ -243,3 +243,19 @@ def test_main_session_drift_reconciles_the_pool(
     assert reconciled is not None
     assert reconciled.session_id == observed
     assert reconciled.session_id != expected
+
+
+def test_finished_run_row_carries_the_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pool = _pool(tmp_path)
+    entry = pool.save("PROJ-PERSIST", _spec())
+    messages = [_assistant("captured text", session_id=entry.session_id)]
+    monkeypatch.setattr("agent_fleet.engine.dispatch.query", _fake_query(messages))
+
+    outcome = asyncio.run(
+        run_with_capture(pool, entry.agent_key, _TASK, pool.to_new_run_options(entry))
+    )
+    stored = pool.get_run(outcome.run.run_id)
+    assert stored is not None
+    assert stored.output == "captured text"
