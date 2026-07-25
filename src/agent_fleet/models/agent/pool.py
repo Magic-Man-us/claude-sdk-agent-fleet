@@ -103,8 +103,8 @@ class RunOutcome(FrozenModel):
     force a JSON-schema-validated result; `run_with_capture` populates them from the run's terminal
     `ResultMessage` when present."""
 
-    output: str
+    output: RunOutput
     run: RunRecord
     agent_runs: list[AgentRunRecord]
     structured_output: JsonValue | None = None
-    total_cost_usd: float | None = None
+    total_cost_usd: CostUsd | None = None
