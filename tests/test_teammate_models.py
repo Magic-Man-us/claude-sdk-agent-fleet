@@ -3,11 +3,21 @@ from __future__ import annotations
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from agent_fleet.models.agent import CostUsd, RunOutput, ToolkitName
+from agent_fleet.models.agent import (
+    AgentKey,
+    CostUsd,
+    RunOutput,
+    TeammateRunStatus,
+    TeammateTemplate,
+    Toolkit,
+    ToolkitName,
+    teammate_key,
+)
 
 _TOOLKIT_NAME = TypeAdapter(ToolkitName)
 _COST = TypeAdapter(CostUsd)
 _OUTPUT = TypeAdapter(RunOutput)
+_AGENT_KEY = TypeAdapter(AgentKey)
 
 
 def test_toolkit_name_accepts_slug_and_rejects_uppercase() -> None:
@@ -24,3 +34,29 @@ def test_cost_rejects_negative() -> None:
 
 def test_run_output_accepts_text() -> None:
     assert _OUTPUT.validate_python("done") == "done"
+
+
+def test_teammate_key_is_a_valid_agent_key() -> None:
+    key = teammate_key("reviewer")
+    assert key == "teammate.reviewer"
+    assert _AGENT_KEY.validate_python(key) == key
+
+
+def test_template_defaults() -> None:
+    template = TeammateTemplate(
+        name="reviewer",
+        brief="Review code changes for correctness and regressions.",
+    )
+    assert template.toolkits == []
+    assert template.model.value == "inherit"
+
+
+def test_toolkit_requires_valid_entries() -> None:
+    kit = Toolkit(name="pydantic-review", entries=["skill-pydantic-type-discipline"])
+    assert kit.entries == ["skill-pydantic-type-discipline"]
+
+
+def test_status_enum_members() -> None:
+    assert {s.value for s in TeammateRunStatus} == {
+        "unspawned", "idle", "running", "finished", "stale",
+    }

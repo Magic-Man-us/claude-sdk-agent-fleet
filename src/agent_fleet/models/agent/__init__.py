@@ -4,6 +4,15 @@ from .pool import AgentRunRecord, Finding, PoolEntry, RunOutcome, RunRecord
 from .prompt import PromptSection, TemplatedPrompt
 from .request import ProblemRequest
 from .spec import AgentSpec
+from .teammate import (
+    TEAMMATE_KEY_PREFIX,
+    RosterEntry,
+    TeammateRunStatus,
+    TeammateStatus,
+    TeammateTemplate,
+    Toolkit,
+    teammate_key,
+)
 from .thinking import (
     AdaptiveThinking,
     DisabledThinking,
@@ -54,6 +63,7 @@ __all__ = [
     "PROMPT_MIN",
     "PROMPT_TOKEN_MAX",
     "TASK_TOKEN_MAX",
+    "TEAMMATE_KEY_PREFIX",
     "AdaptiveThinking",
     "AgentColor",
     "AgentDescription",
@@ -78,6 +88,7 @@ __all__ = [
     "ProblemRequest",
     "PromptBody",
     "PromptSection",
+    "RosterEntry",
     "RunId",
     "RunOutcome",
     "RunOutput",
@@ -87,10 +98,15 @@ __all__ = [
     "SkillBudget",
     "TaskBrief",
     "TeamSlug",
+    "TeammateRunStatus",
+    "TeammateStatus",
+    "TeammateTemplate",
     "TemplatedPrompt",
     "ThinkingBudget",
     "ThinkingConfig",
     "ThinkingDisplay",
     "ToolBudget",
+    "Toolkit",
     "ToolkitName",
+    "teammate_key",
 ]
