@@ -54,6 +54,13 @@ def test_template_defaults() -> None:
 def test_toolkit_requires_valid_entries() -> None:
     kit = Toolkit(name="pydantic-review", entries=["skill-pydantic-type-discipline"])
     assert kit.entries == ["skill-pydantic-type-discipline"]
+    with pytest.raises(ValidationError):
+        Toolkit(name="pydantic-review", entries=["Skill Alpha"])
+
+
+def test_toolkit_rejects_empty_entries() -> None:
+    with pytest.raises(ValidationError):
+        Toolkit(name="pydantic-review", entries=[])
 
 
 def test_status_enum_members() -> None:

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Annotated
 
-from pydantic import JsonValue
+from pydantic import Field, JsonValue
 
 from capdisc.base import FrozenModel
 from capdisc.catalog import CatalogEntryId, Tag
@@ -23,6 +24,7 @@ from .types import (
 
 class TeammateRunStatus(StrEnum):
     """Derived state of a teammate's latest run — never stored, so it cannot lie after a crash:
+    `unspawned` means no pool entry exists yet; `idle` means the entry exists but has never run;
     `stale` means an unfinished run unknown to the live registry (the session itself is intact)."""
 
     unspawned = "unspawned"
@@ -36,7 +38,7 @@ class Toolkit(FrozenModel):
     """A named capability bundle a template pins — the dedicated skills of a teammate."""
 
     name: ToolkitName
-    entries: list[CatalogEntryId]
+    entries: Annotated[list[CatalogEntryId], Field(min_length=1)]
 
 
 class TeammateTemplate(FrozenModel):

@@ -31,9 +31,32 @@ ROSTER: tuple[TeammateTemplate, ...] = (
     ),
 )
 
+
+def _validate_roster(roster: Sequence[TeammateTemplate], toolkits: Sequence[Toolkit]) -> None:
+    """Integrity checks run at import time: no two templates share a name, and every toolkit a
+    template references actually exists in `toolkits`.
+
+    Raises:
+        ValueError: Naming the offending template or toolkit name(s).
+    """
+    seen: dict[AgentName, int] = {}
+    for template in roster:
+        seen[template.name] = seen.get(template.name, 0) + 1
+    duplicates = sorted(name for name, count in seen.items() if count > 1)
+    if duplicates:
+        raise ValueError(f"duplicate teammate names in roster: {', '.join(duplicates)}")
+
+    known_toolkits = {kit.name for kit in toolkits}
+    for template in roster:
+        missing = sorted(set(template.toolkits) - known_toolkits)
+        if missing:
+            raise ValueError(
+                f"template {template.name!r} references unknown toolkit(s): {', '.join(missing)}"
+            )
+
+
+_validate_roster(ROSTER, TOOLKITS)
 _TEMPLATE_BY_NAME: dict[AgentName, TeammateTemplate] = {t.name: t for t in ROSTER}
-if len(_TEMPLATE_BY_NAME) != len(ROSTER):
-    raise ValueError("duplicate teammate names in ROSTER")
 
 
 def resolve_template(name: AgentName) -> TeammateTemplate:
