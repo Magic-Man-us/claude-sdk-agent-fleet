@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import pytest
+from pydantic import ValidationError
 from pydantic_settings import SettingsConfigDict
 
 from agent_fleet.settings import AgentFleetSettings
@@ -252,3 +254,11 @@ def test_notify_command_real_value_is_kept(tmp_path: Path) -> None:
         tmp_path / "missing.json", AGENT_FLEET_NOTIFY_COMMAND="notify-send teammate-done"
     )
     assert s.notify_command == "notify-send teammate-done"
+
+
+def test_notify_command_rejects_a_non_string_value() -> None:
+    # a non-string must fail validation loudly, not silently normalize to None like a blank
+    # string — env vars are always strings, so this goes through model_validate directly rather
+    # than the env-var-only _settings_with_json helper
+    with pytest.raises(ValidationError):
+        AgentFleetSettings.model_validate({"AGENT_FLEET_NOTIFY_COMMAND": 123})

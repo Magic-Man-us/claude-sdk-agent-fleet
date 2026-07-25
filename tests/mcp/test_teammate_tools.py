@@ -52,6 +52,21 @@ def _fake_query_then_raise(messages: list[Message]) -> object:
     return _query
 
 
+def test_schema_teammate_param_descriptions_reach_the_tools() -> None:
+    tools = asyncio.run(pool_server.mcp.list_tools())
+    by_name = {tool.name: tool for tool in tools}
+
+    check_schema = by_name["check_teammate"].parameters
+    assert "roster" in check_schema["properties"]["name"]["description"].lower()
+
+    message_schema = by_name["message_teammate"].parameters
+    assert "roster" in message_schema["properties"]["name"]["description"].lower()
+    assert "standing session" in message_schema["properties"]["task"]["description"].lower()
+
+    spawn_schema = by_name["spawn_teammate"].parameters
+    assert "roster" in spawn_schema["properties"]["name"]["description"].lower()
+
+
 def test_roster_lists_templates_unspawned(pool: AgentPool) -> None:
     entries = pool_server.roster()
     assert [e.template.name for e in entries] == [t.name for t in ROSTER]
@@ -289,6 +304,41 @@ def test_message_while_running_returns_live_status_without_opening_second_run(
 
         release.set()
         await pool_server._runner().wait_all()
+        assert len(pool_server.list_runs(teammate_key(_NAME))) == 1
+
+    asyncio.run(scenario())
+
+
+def test_message_wait_on_a_live_run_waits_for_it_and_reports_terminal(
+    pool: AgentPool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        release = asyncio.Event()
+
+        async def gated(**kwargs: object) -> object:
+            await release.wait()
+            entry = pool.get_by_key(teammate_key(_NAME))
+            assert entry is not None
+            yield _assistant("live run done", session_id=entry.session_id)
+
+        monkeypatch.setattr("agent_fleet.engine.dispatch.query", gated)
+
+        first = await pool_server.spawn_teammate(_NAME, _TASK)
+        assert first.status is TeammateRunStatus.running
+
+        wait_task = asyncio.create_task(
+            pool_server.message_teammate(_NAME, "a second turn sent while busy", wait=True)
+        )
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        assert not wait_task.done()  # wait=True must actually block on the already-live run
+
+        release.set()
+        status = await wait_task
+
+        assert status.status is TeammateRunStatus.finished
+        assert status.run_id == first.run_id
+        assert status.output == "live run done"
         assert len(pool_server.list_runs(teammate_key(_NAME))) == 1
 
     asyncio.run(scenario())

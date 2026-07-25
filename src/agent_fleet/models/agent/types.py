@@ -293,6 +293,26 @@ AwaitRun = Annotated[
         "backgrounds the run and returns immediately.",
     ),
 ]
+TeammateName = Annotated[
+    str,
+    Field(
+        pattern=r"^[a-z0-9][a-z0-9-]{0,63}$",
+        title="Teammate name",
+        description="The roster teammate to address — valid names come from the `roster()` tool.",
+        examples=["reviewer"],
+    ),
+]
+TeammateTurn = Annotated[
+    str,
+    Field(
+        min_length=12,
+        max_length=8000,
+        title="Teammate turn",
+        description="The conversational turn sent to the teammate's standing session.",
+        examples=["Take another pass over the diff and flag anything you missed."],
+    ),
+    token_bounds(TASK_TOKEN_MAX),
+]
 
 DEFAULT_TEAM = "default"
 DEFAULT_TOOL_BUDGET = 8

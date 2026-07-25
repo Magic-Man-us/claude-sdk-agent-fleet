@@ -23,6 +23,15 @@ NotifyCommand = Annotated[
 ]
 
 
+def _blank_to_none(value: object) -> object:
+    """Map a blank/whitespace-only string to None so `notify_command` reads as unset. Any other
+    value — including a non-string — passes through untouched, so a genuine type error (an int, a
+    list, ...) still raises instead of silently disabling the hook."""
+    if isinstance(value, str):
+        return value if value.strip() else None
+    return value
+
+
 class DiscoveryScope(FrozenModel):
     """Runtime inputs for resolving Claude Code discovery scope roots."""
 
@@ -79,7 +88,7 @@ class AgentFleetSettings(DiscoverySettings):
     )
     notify_command: Annotated[
         NotifyCommand | None,
-        BeforeValidator(lambda value: value if isinstance(value, str) and value.strip() else None),
+        BeforeValidator(_blank_to_none),
     ] = Field(
         default=None,
         description="Shell command a Stop hook runs when a teammate run finishes; None (or an "

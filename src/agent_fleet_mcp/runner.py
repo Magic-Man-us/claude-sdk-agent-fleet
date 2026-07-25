@@ -47,6 +47,14 @@ class TeammateRunner:
         """Whether `run_id` is a currently-registered live task."""
         return run_id in self._tasks
 
+    def task_for(self, run_id: RunId) -> asyncio.Task[object] | None:
+        """The currently-registered live task for `run_id`, or None when it isn't registered —
+        already finished (deregistered), or never spawned in this process. Lets a caller that
+        discovers a run is already live (rather than having just spawned it itself) still await
+        its completion, e.g. `message_teammate(wait=True)` against a run `spawn_teammate` opened.
+        """
+        return self._tasks.get(run_id)
+
     async def wait_all(self) -> None:
         """Wait for every registered task to complete, including tasks a running task spawns via
         the runner while this call is waiting — shutdown and tests. A single `gather` over a
@@ -61,5 +69,5 @@ def run_status(run: RunRecord | None, runner: TeammateRunner) -> TeammateRunStat
     if run is None:
         return TeammateRunStatus.idle
     if run.finished_at is not None:
-        return TeammateRunStatus.failed if run.error else TeammateRunStatus.finished
+        return TeammateRunStatus.failed if run.error is not None else TeammateRunStatus.finished
     return TeammateRunStatus.running if runner.is_running(run.run_id) else TeammateRunStatus.stale

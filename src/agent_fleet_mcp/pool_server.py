@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Coroutine
 from functools import cache
 
@@ -31,8 +32,10 @@ from agent_fleet.models.agent import (
     RunOutcome,
     RunRecord,
     TaskBrief,
+    TeammateName,
     TeammateRunStatus,
     TeammateStatus,
+    TeammateTurn,
     TeamSlug,
     teammate_key,
 )
@@ -446,7 +449,7 @@ def roster() -> list[RosterEntry]:
 
 
 @mcp.tool
-def check_teammate(name: AgentName) -> TeammateStatus:
+def check_teammate(name: TeammateName) -> TeammateStatus:
     """The teammate's latest-run status; persisted output/structured output/cost once finished,
     or its captured error once failed.
 
@@ -466,7 +469,7 @@ def check_teammate(name: AgentName) -> TeammateStatus:
 
 @mcp.tool
 async def spawn_teammate(
-    name: AgentName, task: TaskBrief, fresh_session: FreshSession = False
+    name: TeammateName, task: TaskBrief, fresh_session: FreshSession = False
 ) -> TeammateStatus:
     """Stand the teammate up (creating its pool entry from the roster template when absent) and
     run `task` in the background, returning immediately.
@@ -510,8 +513,8 @@ async def spawn_teammate(
 
 @mcp.tool
 async def message_teammate(
-    name: AgentName,
-    task: TaskBrief,
+    name: TeammateName,
+    task: TeammateTurn,
     wait: AwaitRun = False,
     resume_agent_id: AgentId | None = None,
 ) -> TeammateStatus:
@@ -521,9 +524,11 @@ async def message_teammate(
     finishes, re-raising any exception the run raised (the row is stamped `failed` with the error
     text before it propagates) and otherwise returning the outcome on the status.
 
-    Same live-run guard as `spawn_teammate`: when the latest run is still live, the task is NOT
+    Same live-run guard as `spawn_teammate`: when the latest run is still live, this turn is NOT
     queued — the returned status describes the already-running run instead of opening a second
-    one against the same session. Re-send after it finishes.
+    one against the same session. With `wait=True` against a busy teammate, that means waiting for
+    the LIVE run (not your turn — it was never sent) and reporting its terminal status once it
+    finishes; with `wait=False` the current status returns immediately, as always.
 
     Args:
         name: The teammate to message; valid names come from `roster()`.
@@ -538,7 +543,14 @@ async def message_teammate(
     """
     resolve_template(name)
     key = teammate_key(name)
-    if _live_run(key) is not None:
+    live = _live_run(key)
+    if live is not None:
+        if wait:
+            live_task = _runner().task_for(live.run_id)
+            if live_task is not None:
+                # exceptions are already stamped+logged by _record_failure/_deregister; this
+                # caller is a bystander to someone else's run and must not receive its failure
+                await asyncio.gather(live_task, return_exceptions=True)
         return _teammate_status(name)
     entry = _ensure_teammate(name)
     run, options, prompt = prepare_run(
