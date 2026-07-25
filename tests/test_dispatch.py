@@ -259,3 +259,33 @@ def test_finished_run_row_carries_the_output(
     stored = pool.get_run(outcome.run.run_id)
     assert stored is not None
     assert stored.output == "captured text"
+
+
+def test_finished_run_row_carries_structured_output_and_cost(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pool = _pool(tmp_path)
+    entry = pool.save("PROJ-PERSIST-FULL", _spec())
+    messages: list[Message] = [
+        _assistant("captured text", session_id=entry.session_id),
+        ResultMessage(
+            subtype="success",
+            duration_ms=100,
+            duration_api_ms=80,
+            is_error=False,
+            num_turns=1,
+            session_id=entry.session_id,
+            structured_output={"verdict": "clean"},
+            total_cost_usd=0.0042,
+        ),
+    ]
+    monkeypatch.setattr("agent_fleet.engine.dispatch.query", _fake_query(messages))
+
+    outcome = asyncio.run(
+        run_with_capture(pool, entry.agent_key, _TASK, pool.to_new_run_options(entry))
+    )
+    stored = pool.get_run(outcome.run.run_id)
+    assert stored is not None
+    assert stored.output == "captured text"
+    assert stored.structured_output == {"verdict": "clean"}
+    assert stored.total_cost_usd == 0.0042
