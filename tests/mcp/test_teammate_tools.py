@@ -260,17 +260,20 @@ def test_message_wait_registers_before_awaiting_so_concurrent_check_sees_running
         pool_server._ensure_teammate(_NAME)
         entry = pool.get_by_key(teammate_key(_NAME))
         assert entry is not None
+        entered = asyncio.Event()
         release = asyncio.Event()
 
         async def gated(**kwargs: object) -> object:
+            entered.set()
             await release.wait()
             yield _assistant("done waiting", session_id=entry.session_id)
 
         monkeypatch.setattr("agent_fleet.engine.dispatch.query", gated)
 
         wait_task = asyncio.create_task(pool_server.message_teammate(_NAME, _TASK, wait=True))
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
+        # the runner registers the task synchronously before message_teammate's first await, so
+        # waiting for the stream to actually start guarantees registration already happened
+        await entered.wait()
 
         mid_flight = pool_server.check_teammate(_NAME)
         assert mid_flight.status is TeammateRunStatus.running

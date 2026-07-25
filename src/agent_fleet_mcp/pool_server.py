@@ -151,6 +151,11 @@ async def _record_failure(run_id: RunId, coro: Coroutine[object, object, RunOutc
     enforce anything on the way in. Bounding it here means the stored value is already within
     `RunError`'s length limit, matching what its own truncating validator would produce on read —
     write and read cannot disagree.
+
+    Known limit: a mid-stream failure discards the partial transcript — this wrapper sees only the
+    exception, not whatever text the stream had already produced. Capturing partial output would
+    require `run_with_capture` itself to stamp its own failure path (it already collects `parts` as
+    it streams); deliberately not done here.
     """
     try:
         return await coro

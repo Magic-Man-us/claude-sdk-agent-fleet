@@ -222,7 +222,9 @@ def with_hooks(
         file_stem: The settings file's name (without `.hooks.json`); `spec.name` when None. Callers
             that pool multiple entries under the same display name (e.g. `prepare_run`, which passes
             the pooled `agent_key`) must supply a unique stem — the display name is not unique, but
-            the settings file must be, or two entries' writes clobber each other.
+            the settings file must be, or two entries' writes clobber each other. Written directly
+            into a filename with no further sanitization, so it is expected pre-validated to a
+            filesystem-safe charset (e.g. `AgentKey`'s pattern) — not arbitrary caller input.
 
     Returns:
         A copy of `options` with `settings` pointed at the written file, or `options` unchanged when
