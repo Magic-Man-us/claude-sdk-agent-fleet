@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import sqlite3
 import uuid
 from pathlib import Path
 
@@ -493,3 +494,58 @@ def test_async_save_does_not_block_the_event_loop(tmp_path: Path) -> None:
 
     ticks = asyncio.run(scenario())
     assert ticks > 0  # the ticker interleaved: save() yielded the loop via the thread
+
+
+def test_finish_run_persists_outcome(tmp_path: Path) -> None:
+    pool = AgentPool(tmp_path / "pool.db")
+    entry = pool.save("PROJ-OUT", _spec())
+    run = pool.start_run(entry.agent_key, "record the outcome of this run for later reading")
+    finished = pool.finish_run(
+        run.run_id,
+        output="all done",
+        structured_output={"ok": True},
+        total_cost_usd=0.07,
+    )
+    assert finished.output == "all done"
+    assert finished.structured_output == {"ok": True}
+    assert finished.total_cost_usd == 0.07
+    assert pool.get_run(run.run_id) == finished
+
+
+def test_finish_run_without_outcome_stays_none(tmp_path: Path) -> None:
+    pool = AgentPool(tmp_path / "pool.db")
+    entry = pool.save("PROJ-NONE", _spec())
+    run = pool.start_run(entry.agent_key, "finish this run with no outcome payload at all")
+    finished = pool.finish_run(run.run_id)
+    assert finished.output is None
+    assert finished.structured_output is None
+    assert finished.total_cost_usd is None
+
+
+def test_opening_a_pre_outcome_schema_migrates_it(tmp_path: Path) -> None:
+    db = tmp_path / "pool.db"
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "CREATE TABLE runs (run_id TEXT PRIMARY KEY, agent_key TEXT NOT NULL, "
+        "task TEXT NOT NULL, started_at TEXT NOT NULL, finished_at TEXT)"
+    )
+    run_id = "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+    conn.execute(
+        "INSERT INTO runs (run_id, agent_key, task, started_at) VALUES (?, ?, ?, ?)",
+        (
+            run_id,
+            "PROJ-MIG",
+            "a run recorded before the outcome columns existed",
+            "2026-07-01T00:00:00+00:00",
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    pool = AgentPool(db)  # opening must ALTER the old table, preserving the row
+    migrated = pool.get_run(run_id)
+    assert migrated is not None
+    assert migrated.output is None
+    pool.finish_run(run_id, output="works after migration")
+    reread = pool.get_run(run_id)
+    assert reread is not None and reread.output == "works after migration"

@@ -8,7 +8,17 @@ from pydantic import JsonValue
 from capdisc.base import FrozenModel
 
 from .spec import AgentSpec
-from .types import AgentId, AgentKey, AgentName, FindingContent, RunId, SessionId, TaskBrief
+from .types import (
+    AgentId,
+    AgentKey,
+    AgentName,
+    CostUsd,
+    FindingContent,
+    RunId,
+    RunOutput,
+    SessionId,
+    TaskBrief,
+)
 
 
 class PoolEntry(FrozenModel):
@@ -33,13 +43,18 @@ class PoolEntry(FrozenModel):
 class RunRecord(FrozenModel):
     """One invocation of a pooled agent — appended when a run starts and stamped when it finishes.
     Distinct from `PoolEntry`'s "current state per problem" role: an entry has many runs over its
-    life. `finished_at` is None while the run is in flight."""
+    life. `finished_at` and the outcome fields (`output`, `structured_output`, `total_cost_usd`)
+    stay None while the run is in flight, and the outcome fields stay None afterward too if the
+    run finished without a captured outcome."""
 
     run_id: RunId
     agent_key: AgentKey
     task: TaskBrief
     started_at: datetime
     finished_at: datetime | None = None
+    output: RunOutput | None = None
+    structured_output: JsonValue | None = None
+    total_cost_usd: CostUsd | None = None
 
 
 class AgentRunRecord(FrozenModel):

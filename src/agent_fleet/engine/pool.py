@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from claude_agent_sdk import ClaudeAgentOptions
+from pydantic import JsonValue, TypeAdapter
 
 from capdisc.catalog import DEFAULT_RECALL_LIMIT, RecallLimit
 
@@ -18,11 +19,13 @@ from ..models.agent import (
     AgentName,
     AgentRunRecord,
     AgentSpec,
+    CostUsd,
     Finding,
     FindingContent,
     PoolEntry,
     ProblemRequest,
     RunId,
+    RunOutput,
     RunRecord,
     SessionId,
     TaskBrief,
@@ -70,6 +73,17 @@ _CREATE_FINDINGS_TABLE = (
     "content TEXT NOT NULL, "
     "recorded_at TEXT NOT NULL)"
 )
+
+_RUN_COLUMNS = (
+    "run_id, agent_key, task, started_at, finished_at, "
+    "output, structured_output_json, total_cost_usd"
+)
+_RUNS_OUTCOME_COLUMNS = (
+    ("output", "TEXT"),
+    ("structured_output_json", "TEXT"),
+    ("total_cost_usd", "REAL"),
+)
+_JSON_ADAPTER: TypeAdapter[JsonValue] = TypeAdapter(JsonValue)
 
 type PoolEntryList = list[PoolEntry]  # `AgentPool.list` shadows builtin `list` in annotations
 type RunRecordList = list[RunRecord]
@@ -125,7 +139,15 @@ class AgentPool:
         self._conn.execute(_CREATE_RUNS_TABLE)
         self._conn.execute(_CREATE_AGENT_RUNS_TABLE)
         self._conn.execute(_CREATE_FINDINGS_TABLE)
+        self._ensure_runs_columns()
         self._conn.commit()
+
+    def _ensure_runs_columns(self) -> None:
+        """Add the run-outcome columns to a database created before they existed (idempotent)."""
+        existing = {row["name"] for row in self._conn.execute("PRAGMA table_info(runs)")}
+        for column, sql_type in _RUNS_OUTCOME_COLUMNS:
+            if column not in existing:
+                self._conn.execute(f"ALTER TABLE runs ADD COLUMN {column} {sql_type}")
 
     @property
     def db_path(self) -> Path:
@@ -309,29 +331,36 @@ class AgentPool:
             run = self._start_run_locked(entry.agent_key, task)
         return run, options
 
-    def finish_run(self, run_id: RunId) -> RunRecord:
-        """Stamp `finished_at` on the run and return the updated record.
-
-        Args:
-            run_id: The run to close.
-
-        Returns:
-            The updated run record.
+    def finish_run(
+        self,
+        run_id: RunId,
+        *,
+        output: RunOutput | None = None,
+        structured_output: JsonValue | None = None,
+        total_cost_usd: CostUsd | None = None,
+    ) -> RunRecord:
+        """Stamp `finished_at` (and any captured outcome) on the run, returning the updated record.
 
         Raises:
             KeyError: When `run_id` is unknown.
         """
         now = datetime.now(UTC)
+        structured_json = (
+            None
+            if structured_output is None
+            else _JSON_ADAPTER.dump_json(structured_output).decode()
+        )
         with self._write_lock:
             cursor = self._conn.execute(
-                "UPDATE runs SET finished_at = ? WHERE run_id = ?", (now.isoformat(), run_id)
+                "UPDATE runs SET finished_at = ?, output = ?, "
+                "structured_output_json = ?, total_cost_usd = ? WHERE run_id = ?",
+                (now.isoformat(), output, structured_json, total_cost_usd, run_id),
             )
             self._conn.commit()
             if cursor.rowcount == 0:
                 raise KeyError(run_id)
             row = self._conn.execute(
-                "SELECT run_id, agent_key, task, started_at, finished_at "
-                "FROM runs WHERE run_id = ?",
+                f"SELECT {_RUN_COLUMNS} FROM runs WHERE run_id = ?",  # noqa: S608 — fixed constant
                 (run_id,),
             ).fetchone()
         return _row_to_run(row)
@@ -389,8 +418,7 @@ class AgentPool:
         """Return the run stored under `run_id`, or None if the pool holds no such run."""
         with self._write_lock:
             row = self._conn.execute(
-                "SELECT run_id, agent_key, task, started_at, finished_at "
-                "FROM runs WHERE run_id = ?",
+                f"SELECT {_RUN_COLUMNS} FROM runs WHERE run_id = ?",  # noqa: S608 — fixed constant
                 (run_id,),
             ).fetchone()
         return None if row is None else _row_to_run(row)
@@ -398,8 +426,8 @@ class AgentPool:
     def _list_runs_locked(self, agent_key: AgentKey) -> RunRecordList:
         """Read every run for `agent_key`, assuming the caller already holds `_write_lock`."""
         rows = self._conn.execute(
-            "SELECT run_id, agent_key, task, started_at, finished_at "
-            "FROM runs WHERE agent_key = ? ORDER BY started_at DESC",
+            f"SELECT {_RUN_COLUMNS} FROM runs "  # noqa: S608 — fixed constant
+            "WHERE agent_key = ? ORDER BY started_at DESC",
             (agent_key,),
         ).fetchall()
         return [_row_to_run(row) for row in rows]
@@ -720,12 +748,25 @@ class AsyncAgentPool:
         """
         return await asyncio.to_thread(self._pool.start_run, agent_key, task)
 
-    async def finish_run(self, run_id: RunId) -> RunRecord:
-        """Stamp `finished_at` on the run, off the event loop.
+    async def finish_run(
+        self,
+        run_id: RunId,
+        *,
+        output: RunOutput | None = None,
+        structured_output: JsonValue | None = None,
+        total_cost_usd: CostUsd | None = None,
+    ) -> RunRecord:
+        """Stamp `finished_at` (and any captured outcome) on the run.
 
         Delegates to `AgentPool.finish_run` via `asyncio.to_thread`.
         """
-        return await asyncio.to_thread(self._pool.finish_run, run_id)
+        return await asyncio.to_thread(
+            self._pool.finish_run,
+            run_id,
+            output=output,
+            structured_output=structured_output,
+            total_cost_usd=total_cost_usd,
+        )
 
     async def record_agent_run(
         self,
@@ -846,14 +887,21 @@ def _row_to_entry(row: sqlite3.Row) -> PoolEntry:
 
 
 def _row_to_run(row: sqlite3.Row) -> RunRecord:
-    """Rebuild a `RunRecord` from a database row; `finished_at` stays None while a run is open."""
+    """Rebuild a `RunRecord` from a database row; `finished_at` and the outcome fields stay None
+    while a run is open (or when it finished without a captured outcome)."""
     finished_at = row["finished_at"]
+    structured_json = row["structured_output_json"]
     return RunRecord(
         run_id=row["run_id"],
         agent_key=row["agent_key"],
         task=row["task"],
         started_at=datetime.fromisoformat(row["started_at"]),
         finished_at=datetime.fromisoformat(finished_at) if finished_at is not None else None,
+        output=row["output"],
+        structured_output=(
+            _JSON_ADAPTER.validate_json(structured_json) if structured_json is not None else None
+        ),
+        total_cost_usd=row["total_cost_usd"],
     )
 
 
