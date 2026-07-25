@@ -57,6 +57,14 @@ conversation, or found fuzzily. `run_with_capture` observes the live message str
 real, resumable session id of every agent a run involves — the top-level agent and each dispatched
 subagent. Runs, per-agent runs, and findings are persisted alongside the entry.
 
+## Teammates
+
+The pool's primary MCP surface: a hardcoded roster of templated teammates
+(`src/agent_fleet/engine/teammates.py`), addressed by name. `spawn_teammate` stands one up from
+its template (toolkits pin its capabilities) and runs it in the background; `check_teammate`
+reads the derived status and persisted outcome; `message_teammate` revives the standing session.
+The pool key is `teammate.{name}`, so the same name always resumes the same conversation.
+
 ## Develop
 
 ```

@@ -46,7 +46,7 @@ class TeammateTemplate(FrozenModel):
   name.
 - Template resolution flattens `toolkits` into the pinned-id list handed to the existing
   `create_agent` path. Nothing below the template layer changes.
-- A template's `agent_key` is derived deterministically: `teammate:{name}`. Name-based addressing
+- A template's `agent_key` is derived deterministically: `teammate.{name}`. Name-based addressing
   is therefore key derivation, not a new lookup; `find_agents` remains the fuzzy fallback.
   Spawning is idempotent — same name, same pool entry, same resumed session.
 
@@ -102,7 +102,7 @@ Using the repo's existing fake-`query()` stream patterns:
 - `spawn_teammate` returns before the stream ends; completion persists output.
 - Emptying the registry turns an unfinished run `stale`; re-messaging resumes the same session id.
 - Pool init migrates a pre-existing DB (columns added, rows preserved).
-- Roster resolution, toolkit flattening into pinned ids, `teammate:{name}` key derivation, and
+- Roster resolution, toolkit flattening into pinned ids, `teammate.{name}` key derivation, and
   the unknown-name error.
 - Gates: `uv run pytest`, `uv run ruff check`, `uv run mypy src`.
 
