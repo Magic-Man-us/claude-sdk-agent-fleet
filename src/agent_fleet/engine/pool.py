@@ -50,7 +50,10 @@ _CREATE_RUNS_TABLE = (
     "agent_key TEXT NOT NULL, "
     "task TEXT NOT NULL, "
     "started_at TEXT NOT NULL, "
-    "finished_at TEXT)"
+    "finished_at TEXT, "
+    "output TEXT, "
+    "structured_output_json TEXT, "
+    "total_cost_usd REAL)"
 )
 _CREATE_AGENT_RUNS_TABLE = (
     "CREATE TABLE IF NOT EXISTS agent_runs ("

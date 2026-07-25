@@ -522,6 +522,14 @@ def test_finish_run_without_outcome_stays_none(tmp_path: Path) -> None:
     assert finished.total_cost_usd is None
 
 
+def test_fresh_pool_creates_runs_table_with_outcome_columns(tmp_path: Path) -> None:
+    pool = AgentPool(tmp_path / "pool.db")
+    conn = sqlite3.connect(pool.db_path)
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
+    conn.close()
+    assert {"output", "structured_output_json", "total_cost_usd"} <= columns
+
+
 def test_opening_a_pre_outcome_schema_migrates_it(tmp_path: Path) -> None:
     db = tmp_path / "pool.db"
     conn = sqlite3.connect(db)
