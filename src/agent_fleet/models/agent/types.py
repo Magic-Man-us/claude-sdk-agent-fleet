@@ -257,6 +257,31 @@ CostUsd = Annotated[
         examples=[0.42],
     ),
 ]
+RunError = Annotated[
+    str,
+    Field(
+        min_length=1,
+        max_length=20000,
+        title="Run error",
+        description="The captured exception text of a failed run.",
+    ),
+]
+FreshSession = Annotated[
+    bool,
+    Field(
+        title="Fresh session",
+        description="Mint a new session UUID for the teammate first, discarding its "
+        "conversation history.",
+    ),
+]
+AwaitRun = Annotated[
+    bool,
+    Field(
+        title="Wait",
+        description="Block until the run finishes and return its outcome on the status; False "
+        "backgrounds the run and returns immediately.",
+    ),
+]
 
 DEFAULT_TEAM = "default"
 DEFAULT_TOOL_BUDGET = 8

@@ -14,6 +14,7 @@ from .types import (
     CostUsd,
     ModelId,
     PromptBody,
+    RunError,
     RunId,
     RunOutput,
     SessionId,
@@ -25,12 +26,15 @@ from .types import (
 class TeammateRunStatus(StrEnum):
     """Derived state of a teammate's latest run — never stored, so it cannot lie after a crash:
     `unspawned` means no pool entry exists yet; `idle` means the entry exists but has never run;
-    `stale` means an unfinished run unknown to the live registry (the session itself is intact)."""
+    `stale` means an unfinished run unknown to the live registry (the session itself is intact);
+    `failed` means `finished_at` is set with a recorded error — the run raised rather than
+    completed."""
 
     unspawned = "unspawned"
     idle = "idle"
     running = "running"
     finished = "finished"
+    failed = "failed"
     stale = "stale"
 
 
@@ -54,7 +58,8 @@ class TeammateTemplate(FrozenModel):
 
 class TeammateStatus(FrozenModel):
     """What `spawn_teammate`/`check_teammate`/`message_teammate` report: the derived status of the
-    teammate's latest run plus its persisted outcome once finished."""
+    teammate's latest run plus its persisted outcome once finished — or its captured error once
+    failed."""
 
     name: AgentName
     agent_key: AgentKey
@@ -64,6 +69,7 @@ class TeammateStatus(FrozenModel):
     output: RunOutput | None = None
     structured_output: JsonValue | None = None
     total_cost_usd: CostUsd | None = None
+    error: RunError | None = None
 
 
 class RosterEntry(FrozenModel):

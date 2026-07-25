@@ -24,6 +24,7 @@ from ..models.agent import (
     FindingContent,
     PoolEntry,
     ProblemRequest,
+    RunError,
     RunId,
     RunOutput,
     RunRecord,
@@ -53,7 +54,8 @@ _CREATE_RUNS_TABLE = (
     "finished_at TEXT, "
     "output TEXT, "
     "structured_output_json TEXT, "
-    "total_cost_usd REAL)"
+    "total_cost_usd REAL, "
+    "error TEXT)"
 )
 _CREATE_AGENT_RUNS_TABLE = (
     "CREATE TABLE IF NOT EXISTS agent_runs ("
@@ -79,12 +81,13 @@ _CREATE_FINDINGS_TABLE = (
 
 _RUN_COLUMNS = (
     "run_id, agent_key, task, started_at, finished_at, "
-    "output, structured_output_json, total_cost_usd"
+    "output, structured_output_json, total_cost_usd, error"
 )
 _RUNS_OUTCOME_COLUMNS = (
     ("output", "TEXT"),
     ("structured_output_json", "TEXT"),
     ("total_cost_usd", "REAL"),
+    ("error", "TEXT"),
 )
 _JSON_ADAPTER: TypeAdapter[JsonValue] = TypeAdapter(JsonValue)
 
@@ -341,8 +344,10 @@ class AgentPool:
         output: RunOutput | None = None,
         structured_output: JsonValue | None = None,
         total_cost_usd: CostUsd | None = None,
+        error: RunError | None = None,
     ) -> RunRecord:
-        """Stamp `finished_at` (and any captured outcome) on the run, returning the updated record.
+        """Stamp `finished_at` (and any captured outcome or error) on the run, returning the
+        updated record.
 
         Raises:
             KeyError: When `run_id` is unknown.
@@ -356,8 +361,8 @@ class AgentPool:
         with self._write_lock:
             cursor = self._conn.execute(
                 "UPDATE runs SET finished_at = ?, output = ?, "
-                "structured_output_json = ?, total_cost_usd = ? WHERE run_id = ?",
-                (now.isoformat(), output, structured_json, total_cost_usd, run_id),
+                "structured_output_json = ?, total_cost_usd = ?, error = ? WHERE run_id = ?",
+                (now.isoformat(), output, structured_json, total_cost_usd, error, run_id),
             )
             self._conn.commit()
             if cursor.rowcount == 0:
@@ -758,8 +763,9 @@ class AsyncAgentPool:
         output: RunOutput | None = None,
         structured_output: JsonValue | None = None,
         total_cost_usd: CostUsd | None = None,
+        error: RunError | None = None,
     ) -> RunRecord:
-        """Stamp `finished_at` (and any captured outcome) on the run.
+        """Stamp `finished_at` (and any captured outcome or error) on the run.
 
         Delegates to `AgentPool.finish_run` via `asyncio.to_thread`.
         """
@@ -769,6 +775,7 @@ class AsyncAgentPool:
             output=output,
             structured_output=structured_output,
             total_cost_usd=total_cost_usd,
+            error=error,
         )
 
     async def record_agent_run(
@@ -905,6 +912,7 @@ def _row_to_run(row: sqlite3.Row) -> RunRecord:
             _JSON_ADAPTER.validate_json(structured_json) if structured_json is not None else None
         ),
         total_cost_usd=row["total_cost_usd"],
+        error=row["error"],
     )
 
 

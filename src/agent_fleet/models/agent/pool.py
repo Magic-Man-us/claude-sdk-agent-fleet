@@ -14,6 +14,7 @@ from .types import (
     AgentName,
     CostUsd,
     FindingContent,
+    RunError,
     RunId,
     RunOutput,
     SessionId,
@@ -43,9 +44,10 @@ class PoolEntry(FrozenModel):
 class RunRecord(FrozenModel):
     """One invocation of a pooled agent — appended when a run starts and stamped when it finishes.
     Distinct from `PoolEntry`'s "current state per problem" role: an entry has many runs over its
-    life. `finished_at` and the outcome fields (`output`, `structured_output`, `total_cost_usd`)
-    stay None while the run is in flight, and the outcome fields stay None afterward too if the
-    run finished without a captured outcome."""
+    life. `finished_at` and the outcome fields (`output`, `structured_output`, `total_cost_usd`,
+    `error`) stay None while the run is in flight, and the outcome fields stay None afterward too
+    if the run finished without a captured outcome. `error` is set instead of the outcome fields
+    when the run raised rather than completed."""
 
     run_id: RunId
     agent_key: AgentKey
@@ -55,6 +57,7 @@ class RunRecord(FrozenModel):
     output: RunOutput | None = None
     structured_output: JsonValue | None = None
     total_cost_usd: CostUsd | None = None
+    error: RunError | None = None
 
 
 class AgentRunRecord(FrozenModel):

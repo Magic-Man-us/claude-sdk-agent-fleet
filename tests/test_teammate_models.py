@@ -69,5 +69,6 @@ def test_status_enum_members() -> None:
         "idle",
         "running",
         "finished",
+        "failed",
         "stale",
     }
