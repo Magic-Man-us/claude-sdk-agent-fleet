@@ -26,6 +26,7 @@ from .types import (
     AgentId,
     AgentKey,
     AgentName,
+    CostUsd,
     FindingContent,
     InitialPrompt,
     Isolation,
@@ -35,12 +36,14 @@ from .types import (
     PermissionMode,
     PromptBody,
     RunId,
+    RunOutput,
     SectionTag,
     SessionId,
     SkillBudget,
     TaskBrief,
     TeamSlug,
     ToolBudget,
+    ToolkitName,
 )
 
 __all__ = [
@@ -60,6 +63,7 @@ __all__ = [
     "AgentName",
     "AgentRunRecord",
     "AgentSpec",
+    "CostUsd",
     "DisabledThinking",
     "EnabledThinking",
     "Finding",
@@ -76,6 +80,7 @@ __all__ = [
     "PromptSection",
     "RunId",
     "RunOutcome",
+    "RunOutput",
     "RunRecord",
     "SectionTag",
     "SessionId",
@@ -87,4 +92,5 @@ __all__ = [
     "ThinkingConfig",
     "ThinkingDisplay",
     "ToolBudget",
+    "ToolkitName",
 ]

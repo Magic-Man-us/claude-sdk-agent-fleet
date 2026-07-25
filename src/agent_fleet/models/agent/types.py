@@ -232,6 +232,31 @@ TeamSlug = Annotated[
         description="Name of the team that owns the generated agent.",
     ),
 ]
+ToolkitName = Annotated[
+    str,
+    Field(
+        pattern=r"^[a-z0-9][a-z0-9-]{0,63}$",
+        title="Toolkit name",
+        description="Name of a hardcoded capability bundle a teammate template pins.",
+        examples=["pydantic-review"],
+    ),
+]
+RunOutput = Annotated[
+    str,
+    Field(
+        title="Run output",
+        description="The collected assistant text of a finished run, persisted on its record.",
+    ),
+]
+CostUsd = Annotated[
+    float,
+    Field(
+        ge=0,
+        title="Cost (USD)",
+        description="Total cost of a run in US dollars, from the terminal result message.",
+        examples=[0.42],
+    ),
+]
 
 DEFAULT_TEAM = "default"
 DEFAULT_TOOL_BUDGET = 8
