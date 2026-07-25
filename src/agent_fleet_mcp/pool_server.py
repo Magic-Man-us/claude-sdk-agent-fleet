@@ -8,6 +8,7 @@ from agent_fleet.engine.dispatch import prepare_run, run_with_capture
 from agent_fleet.engine.pool import AgentPool
 from agent_fleet.engine.pool import create_agent as pool_create_agent
 from agent_fleet.engine.source import CatalogSource, InMemoryCatalogSource
+from agent_fleet.engine.teammates import ROSTER, resolve_template, template_request
 from agent_fleet.models.agent import (
     DEFAULT_TEAM,
     AgentId,
@@ -19,11 +20,15 @@ from agent_fleet.models.agent import (
     PoolEntry,
     ProblemRequest,
     PromptBody,
+    RosterEntry,
     RunId,
     RunOutcome,
     RunRecord,
     TaskBrief,
+    TeammateRunStatus,
+    TeammateStatus,
     TeamSlug,
+    teammate_key,
 )
 from agent_fleet.router.capability import CapabilityRouter
 from agent_fleet.settings import AgentFleetSettings, current_discovery_scope
@@ -34,6 +39,8 @@ from capdisc.catalog import (
     Tag,
 )
 from capdisc.discovery import scan_environment
+
+from .runner import TeammateRunner, run_status
 
 mcp = FastMCP("agent-pool")
 
@@ -80,6 +87,47 @@ def _capability_router() -> CapabilityRouter:
     """
     roots = current_discovery_scope().roots()
     return CapabilityRouter.from_environment(roots)
+
+
+@cache
+def _runner() -> TeammateRunner:
+    """The process-wide registry of live background teammate runs, once, on first use."""
+    return TeammateRunner()
+
+
+def _ensure_teammate(name: AgentName, *, fresh_session: bool = False) -> PoolEntry:
+    """The pool entry for teammate `name`, creating it from its roster template when absent.
+
+    Raises:
+        ValueError: When `name` is not on the roster.
+    """
+    template = resolve_template(name)
+    key = teammate_key(name)
+    entry = _pool().get_by_key(key)
+    if entry is not None and not fresh_session:
+        return entry
+    return pool_create_agent(
+        key, template_request(template), _source(), _pool(), reset_session=fresh_session
+    )
+
+
+def _teammate_status(name: AgentName, entry: PoolEntry | None) -> TeammateStatus:
+    """The derived status of `name`'s latest run, with persisted outcome fields once finished."""
+    key = teammate_key(name)
+    if entry is None:
+        return TeammateStatus(name=name, agent_key=key, status=TeammateRunStatus.unspawned)
+    runs = _pool().list_runs(key)
+    latest = runs[0] if runs else None
+    return TeammateStatus(
+        name=name,
+        agent_key=key,
+        status=run_status(latest, _runner()),
+        run_id=latest.run_id if latest is not None else None,
+        session_id=entry.session_id,
+        output=latest.output if latest is not None else None,
+        structured_output=latest.structured_output if latest is not None else None,
+        total_cost_usd=latest.total_cost_usd if latest is not None else None,
+    )
 
 
 @mcp.tool
@@ -299,6 +347,93 @@ async def run_agent(
             raise ValueError(f"pool entry not found: {agent_key}") from exc
         raise ValueError(f"subagent pool entry not found: {missing}") from exc
     return await run_with_capture(pool, agent_key, task, options, run=run, prompt=prompt)
+
+
+@mcp.tool
+def roster() -> list[RosterEntry]:
+    """Every teammate template plus its live pool state — the teammate directory.
+
+    Returns:
+        One row per roster template, in roster order: the template, the derived status of its
+        latest run (`unspawned` before first spawn), and its session id once it exists.
+    """
+    entries: list[RosterEntry] = []
+    for template in ROSTER:
+        entry = _pool().get_by_key(teammate_key(template.name))
+        status = _teammate_status(template.name, entry)
+        entries.append(
+            RosterEntry(template=template, status=status.status, session_id=status.session_id)
+        )
+    return entries
+
+
+@mcp.tool
+def check_teammate(name: AgentName) -> TeammateStatus:
+    """The teammate's latest-run status; persisted output/structured output/cost once finished.
+
+    `stale` means an unfinished run this server process doesn't own (it died mid-run) — the
+    session itself is intact, so `message_teammate` resumes the conversation.
+
+    Raises:
+        ValueError: When `name` is not on the roster.
+    """
+    resolve_template(name)
+    return _teammate_status(name, _pool().get_by_key(teammate_key(name)))
+
+
+@mcp.tool
+async def spawn_teammate(
+    name: AgentName, task: TaskBrief, fresh_session: bool = False
+) -> TeammateStatus:
+    """Stand the teammate up (creating its pool entry from the roster template when absent) and
+    run `task` in the background, returning immediately.
+
+    Spawning while the latest run is still live returns that run's status instead of opening a
+    second concurrent run against the same session. `fresh_session=True` re-assembles the entry
+    with a new session UUID first.
+
+    Raises:
+        ValueError: When `name` is not on the roster.
+    """
+    entry = _ensure_teammate(name, fresh_session=fresh_session)
+    key = entry.agent_key
+    runs = _pool().list_runs(key)
+    if runs and run_status(runs[0], _runner()) is TeammateRunStatus.running:
+        return _teammate_status(name, entry)
+    run, options, prompt = prepare_run(_pool(), _capability_router(), key, task)
+    _runner().spawn(
+        run.run_id,
+        run_with_capture(_pool(), key, task, options, run=run, prompt=prompt),
+    )
+    return _teammate_status(name, entry)
+
+
+@mcp.tool
+async def message_teammate(
+    name: AgentName,
+    task: TaskBrief,
+    wait: bool = False,
+    resume_agent_id: AgentId | None = None,
+) -> TeammateStatus:
+    """Revive the teammate's standing session with a new turn (creating the entry from its
+    template when absent). Backgrounded by default; `wait=True` blocks until the run finishes and
+    returns the outcome on the status. `resume_agent_id` continues one previously-dispatched
+    subagent, as in `run_agent`.
+
+    Raises:
+        ValueError: When `name` is not on the roster.
+    """
+    entry = _ensure_teammate(name)
+    key = entry.agent_key
+    run, options, prompt = prepare_run(
+        _pool(), _capability_router(), key, task, resume_agent_id=resume_agent_id
+    )
+    coro = run_with_capture(_pool(), key, task, options, run=run, prompt=prompt)
+    if wait:
+        await coro
+        return _teammate_status(name, entry)
+    _runner().spawn(run.run_id, coro)
+    return _teammate_status(name, entry)
 
 
 def main() -> None:
