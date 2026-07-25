@@ -27,9 +27,12 @@ class TeammateRunner:
         task.add_done_callback(lambda finished: self._deregister(run_id, finished))
 
     def _deregister(self, run_id: RunId, task: asyncio.Task[object]) -> None:
-        """Drop the finished task; a failure is logged, not raised (the run row stays unfinished,
-        so `run_status` reports it `stale`)."""
-        self._tasks.pop(run_id, None)
+        """Drop the finished task, unless `run_id` was already reassigned to a newer task (a
+        duplicate `spawn` under the same id): only the entry that still points at this exact task
+        is removed, so a stale finish can't evict a live run. A failure is logged, not raised (the
+        run row stays unfinished, so `run_status` reports it `stale`)."""
+        if self._tasks.get(run_id) is task:
+            del self._tasks[run_id]
         if not task.cancelled() and task.exception() is not None:
             logger.error("teammate run %s failed", run_id, exc_info=task.exception())
 
@@ -38,8 +41,12 @@ class TeammateRunner:
         return run_id in self._tasks
 
     async def wait_all(self) -> None:
-        """Wait for every registered task to complete (failures swallowed) — shutdown and tests."""
-        await asyncio.gather(*list(self._tasks.values()), return_exceptions=True)
+        """Wait for every registered task to complete, including tasks a running task spawns via
+        the runner while this call is waiting — shutdown and tests. A single `gather` over a
+        one-time snapshot would miss those: each pass gathers the current snapshot (failures
+        swallowed) and loops until no task remains registered."""
+        while self._tasks:
+            await asyncio.gather(*list(self._tasks.values()), return_exceptions=True)
 
 
 def run_status(run: RunRecord | None, runner: TeammateRunner) -> TeammateRunStatus:
