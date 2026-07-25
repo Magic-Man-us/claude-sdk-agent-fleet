@@ -11,6 +11,7 @@ from agent_fleet.engine.source import CatalogSource, InMemoryCatalogSource
 from agent_fleet.engine.teammates import ROSTER, resolve_template, template_request
 from agent_fleet.models.agent import (
     DEFAULT_TEAM,
+    TEAMMATE_KEY_PREFIX,
     AgentId,
     AgentKey,
     AgentName,
@@ -171,7 +172,15 @@ def create_agent(
 
     Returns:
         The persisted pool entry, carrying the assembled spec, its session UUID, and timestamps.
+
+    Raises:
+        ValueError: When `agent_key` falls under the reserved teammate namespace.
     """
+    if agent_key.startswith(TEAMMATE_KEY_PREFIX):
+        raise ValueError(
+            f"agent keys under {TEAMMATE_KEY_PREFIX!r} are reserved for the teammate surface; "
+            "use spawn_teammate"
+        )
     request = ProblemRequest(
         task=task,
         name=name,

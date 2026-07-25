@@ -75,6 +75,11 @@ def test_get_absent_returns_none(pool: AgentPool) -> None:
     assert pool_server.get_agent("nope") is None
 
 
+def test_create_agent_rejects_the_teammate_key_namespace(pool: AgentPool) -> None:
+    with pytest.raises(ValueError, match="reserved"):
+        pool_server.create_agent("teammate.reviewer", _TASK)
+
+
 def test_list_and_find(pool: AgentPool) -> None:
     pool_server.create_agent(_AGENT_KEY, _TASK)
     pool_server.create_agent(_SUB_AGENT_KEY, _SUB_TASK)
