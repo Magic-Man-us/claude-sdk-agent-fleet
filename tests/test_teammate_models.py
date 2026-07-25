@@ -5,6 +5,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from agent_fleet.models.agent import (
     RUN_ERROR_MAX,
+    RUN_OUTPUT_MAX,
     AgentKey,
     CostUsd,
     RunError,
@@ -37,6 +38,13 @@ def test_cost_rejects_negative() -> None:
 
 def test_run_output_accepts_text() -> None:
     assert _OUTPUT.validate_python("done") == "done"
+
+
+def test_run_output_truncates_overlong_text() -> None:
+    overlong = "x" * (RUN_OUTPUT_MAX + 500)
+    truncated = _OUTPUT.validate_python(overlong)
+    assert len(truncated) == RUN_OUTPUT_MAX
+    assert truncated == "x" * RUN_OUTPUT_MAX
 
 
 def test_run_error_truncates_overlong_text() -> None:

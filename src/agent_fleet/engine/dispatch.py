@@ -22,6 +22,7 @@ from ..models.agent import (
     AgentName,
     AgentSpec,
     RunOutcome,
+    RunOutput,
     RunRecord,
     SessionId,
     TaskBrief,
@@ -32,6 +33,7 @@ from .pool import AgentPool
 from .render import SUBAGENT_TOOL, with_agent_resume, with_hooks, with_subagents
 
 _TASK_BRIEF_ADAPTER: TypeAdapter[TaskBrief] = TypeAdapter(TaskBrief)
+_RUN_OUTPUT_ADAPTER: TypeAdapter[RunOutput] = TypeAdapter(RunOutput)
 
 
 def build_resume_prompt(agent_id: AgentId, task: TaskBrief) -> TaskBrief:
@@ -206,7 +208,7 @@ async def run_with_capture(
                 main_recorded = True
                 if expected_session is not None and session_id != expected_session:
                     pool.reconcile_session(agent_key, session_id)
-    output = "\n".join(parts)
+    output = _RUN_OUTPUT_ADAPTER.validate_python("\n".join(parts))
     finished = pool.finish_run(
         run.run_id,
         output=output,

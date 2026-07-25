@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import sqlite3
 import uuid
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -17,6 +18,7 @@ from claude_agent_sdk import (
 
 from agent_fleet import AgentPool, AgentSpec, RunOutcome
 from agent_fleet.engine.dispatch import run_with_capture
+from agent_fleet.models.agent import RUN_OUTPUT_MAX
 
 _PROMPT = "You are auditor. Audit the code for vulnerabilities and stop."
 _AGENT_KEY = "PROJ-4821"
@@ -108,6 +110,32 @@ def test_run_with_no_dispatched_agents_records_one_main_row(
     assert outcome.agent_runs[0].tool_use_id is None
     assert outcome.agent_runs[0].session_id == main_session
     assert outcome.run.finished_at is not None
+
+
+def test_run_with_overlong_output_stores_bounded_text(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pool = _pool(tmp_path)
+    entry = pool.save(_AGENT_KEY, _spec())
+    overlong = "x" * (RUN_OUTPUT_MAX + 500)
+    messages: list[Message] = [_assistant(overlong, session_id=entry.session_id)]
+    monkeypatch.setattr("agent_fleet.engine.dispatch.query", _fake_query(messages))
+
+    outcome = asyncio.run(run_with_capture(pool, _AGENT_KEY, _TASK, pool.to_new_run_options(entry)))
+
+    assert len(outcome.output) <= RUN_OUTPUT_MAX
+    reread = pool.get_run(outcome.run.run_id)
+    assert reread is not None
+    assert reread.output == outcome.output
+
+    # the row itself must already be bounded on write -- proves the write path validated rather
+    # than relying solely on RunOutput's read-path truncation to mask an over-long stored value
+    conn = sqlite3.connect(pool.db_path)
+    stored = conn.execute(
+        "SELECT output FROM runs WHERE run_id = ?", (outcome.run.run_id,)
+    ).fetchone()[0]
+    conn.close()
+    assert len(stored) <= RUN_OUTPUT_MAX
 
 
 def test_run_with_dispatched_agent_records_two_linked_rows(

@@ -445,6 +445,21 @@ class AgentPool:
         with self._write_lock:
             return self._list_runs_locked(agent_key)
 
+    def latest_run(self, agent_key: AgentKey) -> RunRecord | None:
+        """Return `agent_key`'s single most-recently-started run, or None before its first.
+
+        A single-row query (`LIMIT 1`) rather than `list_runs(agent_key)[0]` — the caller only
+        ever wants the latest one (deriving live/stale/finished status), so this avoids reading
+        every run an entry has ever had just to look at the newest.
+        """
+        with self._write_lock:
+            row = self._conn.execute(
+                f"SELECT {_RUN_COLUMNS} FROM runs "  # noqa: S608 — fixed constant
+                "WHERE agent_key = ? ORDER BY started_at DESC LIMIT 1",
+                (agent_key,),
+            ).fetchone()
+        return None if row is None else _row_to_run(row)
+
     def list_agent_runs(self, run_id: RunId) -> AgentRunRecordList:
         """Return every agent within `run_id`, in `recorded_at` order (main row first)."""
         with self._write_lock:
@@ -618,11 +633,10 @@ class AsyncAgentPool:
     `AgentPool` call in `asyncio.to_thread` by hand to keep the event loop free. This wraps that
     once: the SQLite-touching methods (`save`, `create_agent`, `reconcile_session`, `get_by_key`,
     `list`, `delete`, `find`, `start_run`, `finish_run`, `record_agent_run`, `get_run`, `list_runs`,
-    `list_agent_runs`, `record_finding`, `list_findings`) become `async def` delegations dispatched
-    off the loop via
-    `asyncio.to_thread`, while the pure
-    in-memory option builders (`to_new_run_options`, `to_resume_options`) stay plain synchronous
-    delegations — there is no I/O to offload.
+    `latest_run`, `list_agent_runs`, `record_finding`, `list_findings`) become `async def`
+    delegations dispatched off the loop via `asyncio.to_thread`, while the pure in-memory option
+    builders (`to_new_run_options`, `to_resume_options`) stay plain synchronous delegations —
+    there is no I/O to offload.
 
     Composition, not reimplementation: this holds an existing `AgentPool` and every method body
     delegates to it. It opens no connection and owns no schema of its own.
@@ -813,6 +827,13 @@ class AsyncAgentPool:
         Delegates to `AgentPool.list_runs` via `asyncio.to_thread`.
         """
         return await asyncio.to_thread(self._pool.list_runs, agent_key)
+
+    async def latest_run(self, agent_key: AgentKey) -> RunRecord | None:
+        """Return `agent_key`'s single most-recently-started run, or None — off the event loop.
+
+        Delegates to `AgentPool.latest_run` via `asyncio.to_thread`.
+        """
+        return await asyncio.to_thread(self._pool.latest_run, agent_key)
 
     async def list_agent_runs(self, run_id: RunId) -> AgentRunRecordList:
         """Return every agent dispatched within `run_id`, in `recorded_at` order — off the loop.

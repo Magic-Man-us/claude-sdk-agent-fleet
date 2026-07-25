@@ -450,6 +450,33 @@ def test_list_runs_orders_most_recent_first(tmp_path: Path) -> None:
     assert [r.run_id for r in runs] == [second.run_id, first.run_id]
 
 
+def test_latest_run_returns_most_recent_or_none(tmp_path: Path) -> None:
+    pool = _pool(tmp_path)
+    pool.save(_AGENT_KEY, _spec())
+    assert pool.latest_run(_AGENT_KEY) is None
+
+    first = pool.start_run(_AGENT_KEY, _TASK)
+    latest = pool.latest_run(_AGENT_KEY)
+    assert latest is not None and latest.run_id == first.run_id
+
+    second = pool.start_run(_AGENT_KEY, _TASK)
+    latest = pool.latest_run(_AGENT_KEY)
+    assert latest is not None and latest.run_id == second.run_id
+
+
+def test_async_latest_run_passthrough(tmp_path: Path) -> None:
+    async_pool = AsyncAgentPool(_pool(tmp_path))
+
+    async def scenario() -> None:
+        await async_pool.save(_AGENT_KEY, _spec())
+        assert await async_pool.latest_run(_AGENT_KEY) is None
+        run = await async_pool.start_run(_AGENT_KEY, _TASK)
+        latest = await async_pool.latest_run(_AGENT_KEY)
+        assert latest is not None and latest.run_id == run.run_id
+
+    asyncio.run(scenario())
+
+
 def test_async_reconcile_and_run_tracking(tmp_path: Path) -> None:
     async_pool = AsyncAgentPool(_pool(tmp_path))
 

@@ -83,6 +83,7 @@ PROMPT_TOKEN_MAX = 6000
 PROMPT_MIN = 40
 PROMPT_MAX = 20000
 RUN_ERROR_MAX = 20000
+RUN_OUTPUT_MAX = 200_000
 
 _DESCRIPTION_SUMMARY_MAX = 200
 
@@ -98,6 +99,13 @@ def _truncate_run_error(value: object) -> object:
     bound was enforced on write. Non-str input passes through untouched so Pydantic's own type
     check still raises."""
     return value[:RUN_ERROR_MAX] if isinstance(value, str) else value
+
+
+def _truncate_run_output(value: object) -> object:
+    """Cap a run's collected assistant text at `RUN_OUTPUT_MAX`, mirroring
+    `_truncate_run_error`'s read-path self-heal and write-path bound. Non-str input passes through
+    untouched so Pydantic's own type check still raises."""
+    return value[:RUN_OUTPUT_MAX] if isinstance(value, str) else value
 
 
 AgentName = Annotated[
@@ -252,9 +260,12 @@ ToolkitName = Annotated[
 ]
 RunOutput = Annotated[
     str,
+    BeforeValidator(_truncate_run_output),
     Field(
+        max_length=RUN_OUTPUT_MAX,
         title="Run output",
-        description="The collected assistant text of a finished run, persisted on its record.",
+        description="The collected assistant text of a finished run, persisted on its record; "
+        f"text over {RUN_OUTPUT_MAX} characters is truncated to that bound.",
     ),
 ]
 CostUsd = Annotated[

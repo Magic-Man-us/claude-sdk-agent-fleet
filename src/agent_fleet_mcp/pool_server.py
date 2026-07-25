@@ -169,8 +169,7 @@ def _live_run(key: AgentKey) -> RunRecord | None:
     """The teammate's latest run, when it is still live (registered and unfinished); None when
     it is safe to queue a new one. Checked before any session mutation (`fresh_session`) so a
     live run's session can't be silently reset out from under it."""
-    runs = _pool().list_runs(key)
-    latest = runs[0] if runs else None
+    latest = _pool().latest_run(key)
     if latest is not None and run_status(latest, _runner()) is TeammateRunStatus.running:
         return latest
     return None
@@ -183,8 +182,7 @@ def _teammate_status(name: AgentName) -> TeammateStatus:
     entry = _pool().get_by_key(key)
     if entry is None:
         return TeammateStatus(name=name, agent_key=key, status=TeammateRunStatus.unspawned)
-    runs = _pool().list_runs(key)
-    latest = runs[0] if runs else None
+    latest = _pool().latest_run(key)
     return TeammateStatus(
         name=name,
         agent_key=key,
