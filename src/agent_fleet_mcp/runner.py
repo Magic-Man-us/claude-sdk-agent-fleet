@@ -20,11 +20,18 @@ class TeammateRunner:
     def __init__(self) -> None:
         self._tasks: dict[RunId, asyncio.Task[object]] = {}
 
-    def spawn(self, run_id: RunId, coro: Coroutine[object, object, object]) -> None:
-        """Start `coro` as a background task registered under `run_id`."""
+    def spawn(self, run_id: RunId, coro: Coroutine[object, object, object]) -> asyncio.Task[object]:
+        """Start `coro` as a background task registered under `run_id`, returning the task.
+
+        A caller that must await this exact run (e.g. `message_teammate(wait=True)`) awaits the
+        returned task, never a bare `await coro`: awaiting the coroutine directly would run it
+        outside the registry's bookkeeping, so a concurrent `check_teammate` would see nothing
+        live — `stale`, not `running` — for the whole duration of the wait.
+        """
         task = asyncio.get_running_loop().create_task(coro)
         self._tasks[run_id] = task
         task.add_done_callback(lambda finished: self._deregister(run_id, finished))
+        return task
 
     def _deregister(self, run_id: RunId, task: asyncio.Task[object]) -> None:
         """Drop the finished task, unless `run_id` was already reassigned to a newer task (a
@@ -54,5 +61,5 @@ def run_status(run: RunRecord | None, runner: TeammateRunner) -> TeammateRunStat
     if run is None:
         return TeammateRunStatus.idle
     if run.finished_at is not None:
-        return TeammateRunStatus.finished
+        return TeammateRunStatus.failed if run.error else TeammateRunStatus.finished
     return TeammateRunStatus.running if runner.is_running(run.run_id) else TeammateRunStatus.stale

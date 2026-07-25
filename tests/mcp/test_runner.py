@@ -90,6 +90,20 @@ def test_wait_all_waits_for_tasks_spawned_by_running_tasks() -> None:
     asyncio.run(scenario())
 
 
+def test_spawn_returns_the_registered_task() -> None:
+    async def scenario() -> None:
+        runner = TeammateRunner()
+
+        async def job() -> str:
+            return "done"
+
+        task = runner.spawn(_RUN_ID, job())
+        assert isinstance(task, asyncio.Task)
+        assert await task == "done"
+
+    asyncio.run(scenario())
+
+
 def test_deregister_ignores_a_stale_task_under_a_reused_run_id() -> None:
     async def scenario() -> None:
         runner = TeammateRunner()

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Coroutine
 from functools import cache
 
 from fastmcp import FastMCP
@@ -16,7 +17,9 @@ from agent_fleet.models.agent import (
     AgentKey,
     AgentName,
     AgentRunRecord,
+    AwaitRun,
     Finding,
+    FreshSession,
     ModelId,
     PoolEntry,
     ProblemRequest,
@@ -122,9 +125,38 @@ def _notify_hooks() -> HookConfig | None:
     return HookConfig({HookEvent.stop: [MatcherGroup(hooks=[CommandHook(command=command)])]})
 
 
-def _teammate_status(name: AgentName, entry: PoolEntry | None) -> TeammateStatus:
-    """The derived status of `name`'s latest run, with persisted outcome fields once finished."""
+async def _record_failure(run_id: RunId, coro: Coroutine[object, object, RunOutcome]) -> RunOutcome:
+    """Stamp the run `failed` with the exception text before re-raising.
+
+    `run_with_capture`'s own `finish_run` call sits after its message loop, so a stream that
+    raises mid-run never reaches it — the row stays open, and once the task deregisters
+    `run_status` would report it `stale` rather than surfacing the failure. This wraps every
+    dispatched run (background and `wait=True` alike) so a raised run is still visible via
+    `check_teammate`.
+    """
+    try:
+        return await coro
+    except Exception as exc:
+        _pool().finish_run(run_id, error=f"{type(exc).__name__}: {exc}")
+        raise
+
+
+def _live_run(key: AgentKey) -> RunRecord | None:
+    """The teammate's latest run, when it is still live (registered and unfinished); None when
+    it is safe to queue a new one. Checked before any session mutation (`fresh_session`) so a
+    live run's session can't be silently reset out from under it."""
+    runs = _pool().list_runs(key)
+    latest = runs[0] if runs else None
+    if latest is not None and run_status(latest, _runner()) is TeammateRunStatus.running:
+        return latest
+    return None
+
+
+def _teammate_status(name: AgentName) -> TeammateStatus:
+    """The derived status of `name`'s latest run, with persisted outcome fields once finished (or
+    its captured error once failed)."""
     key = teammate_key(name)
+    entry = _pool().get_by_key(key)
     if entry is None:
         return TeammateStatus(name=name, agent_key=key, status=TeammateRunStatus.unspawned)
     runs = _pool().list_runs(key)
@@ -138,6 +170,7 @@ def _teammate_status(name: AgentName, entry: PoolEntry | None) -> TeammateStatus
         output=latest.output if latest is not None else None,
         structured_output=latest.structured_output if latest is not None else None,
         total_cost_usd=latest.total_cost_usd if latest is not None else None,
+        error=latest.error if latest is not None else None,
     )
 
 
@@ -378,8 +411,7 @@ def roster() -> list[RosterEntry]:
     """
     entries: list[RosterEntry] = []
     for template in ROSTER:
-        entry = _pool().get_by_key(teammate_key(template.name))
-        status = _teammate_status(template.name, entry)
+        status = _teammate_status(template.name)
         entries.append(
             RosterEntry(template=template, status=status.status, session_id=status.session_id)
         )
@@ -388,78 +420,118 @@ def roster() -> list[RosterEntry]:
 
 @mcp.tool
 def check_teammate(name: AgentName) -> TeammateStatus:
-    """The teammate's latest-run status; persisted output/structured output/cost once finished.
+    """The teammate's latest-run status; persisted output/structured output/cost once finished,
+    or its captured error once failed.
 
     `stale` means an unfinished run this server process doesn't own (it died mid-run) — the
-    session itself is intact, so `message_teammate` resumes the conversation.
+    session itself is intact, so `message_teammate` resumes the conversation. `failed` means the
+    run raised; its text is on `TeammateStatus.error`.
+
+    Args:
+        name: The teammate to check; valid names come from `roster()`.
+
+    Raises:
+        ValueError: When `name` is not on the roster.
+    """
+    resolve_template(name)  # the roster gate: an off-roster name raises before any pool read
+    return _teammate_status(name)
+
+
+@mcp.tool
+async def spawn_teammate(
+    name: AgentName, task: TaskBrief, fresh_session: FreshSession = False
+) -> TeammateStatus:
+    """Stand the teammate up (creating its pool entry from the roster template when absent) and
+    run `task` in the background, returning immediately.
+
+    When the teammate's latest run is still live, the task is NOT queued: the returned status
+    describes that already-running run rather than opening a second one against the same session
+    — re-send after it finishes. This liveness check runs before `fresh_session` takes effect, so
+    a live run's session can't be reset out from under it.
+
+    Deliberately `async def` with no `await` before the spawn: `TeammateRunner.spawn` needs the
+    currently-running event loop, which only exists because this coroutine itself executes on it
+    — a threadpool execution (e.g. an `asyncio.to_thread` wrapper) would break it.
+
+    Args:
+        name: The teammate to spawn; valid names come from `roster()`.
+        task: What to run — the entry's first turn, or a new turn on an existing standing
+            session.
+        fresh_session: Mint a new session UUID for the teammate first, discarding its
+            conversation history. Skipped when the latest run is still live.
 
     Raises:
         ValueError: When `name` is not on the roster.
     """
     resolve_template(name)
-    return _teammate_status(name, _pool().get_by_key(teammate_key(name)))
-
-
-@mcp.tool
-async def spawn_teammate(
-    name: AgentName, task: TaskBrief, fresh_session: bool = False
-) -> TeammateStatus:
-    """Stand the teammate up (creating its pool entry from the roster template when absent) and
-    run `task` in the background, returning immediately.
-
-    Spawning while the latest run is still live returns that run's status instead of opening a
-    second concurrent run against the same session. `fresh_session=True` re-assembles the entry
-    with a new session UUID first.
-
-    Raises:
-        ValueError: When `name` is not on the roster.
-    """
+    key = teammate_key(name)
+    if _live_run(key) is not None:
+        return _teammate_status(name)
     entry = _ensure_teammate(name, fresh_session=fresh_session)
-    key = entry.agent_key
-    runs = _pool().list_runs(key)
-    if runs and run_status(runs[0], _runner()) is TeammateRunStatus.running:
-        return _teammate_status(name, entry)
     run, options, prompt = prepare_run(
-        _pool(), _capability_router(), key, task, extra_hooks=_notify_hooks()
+        _pool(), _capability_router(), entry.agent_key, task, extra_hooks=_notify_hooks()
     )
     _runner().spawn(
         run.run_id,
-        run_with_capture(_pool(), key, task, options, run=run, prompt=prompt),
+        _record_failure(
+            run.run_id,
+            run_with_capture(_pool(), entry.agent_key, task, options, run=run, prompt=prompt),
+        ),
     )
-    return _teammate_status(name, entry)
+    return _teammate_status(name)
 
 
 @mcp.tool
 async def message_teammate(
     name: AgentName,
     task: TaskBrief,
-    wait: bool = False,
+    wait: AwaitRun = False,
     resume_agent_id: AgentId | None = None,
 ) -> TeammateStatus:
     """Revive the teammate's standing session with a new turn (creating the entry from its
-    template when absent). Backgrounded by default; `wait=True` blocks until the run finishes and
-    returns the outcome on the status. `resume_agent_id` continues one previously-dispatched
-    subagent, as in `run_agent`.
+    template when absent). `task` here is a conversational turn sent to that standing session,
+    not an agent-generation brief. Backgrounded by default; `wait=True` blocks until the run
+    finishes, re-raising any exception the run raised (the row is stamped `failed` with the error
+    text before it propagates) and otherwise returning the outcome on the status.
+
+    Same live-run guard as `spawn_teammate`: when the latest run is still live, the task is NOT
+    queued — the returned status describes the already-running run instead of opening a second
+    one against the same session. Re-send after it finishes.
+
+    Args:
+        name: The teammate to message; valid names come from `roster()`.
+        task: The conversational turn to send to the teammate's standing session.
+        wait: Block until the run finishes and return its outcome on the status; False
+            backgrounds the run and returns immediately.
+        resume_agent_id: When set, continue one specific previously-dispatched subagent, as in
+            `run_agent`.
 
     Raises:
         ValueError: When `name` is not on the roster.
     """
+    resolve_template(name)
+    key = teammate_key(name)
+    if _live_run(key) is not None:
+        return _teammate_status(name)
     entry = _ensure_teammate(name)
-    key = entry.agent_key
     run, options, prompt = prepare_run(
         _pool(),
         _capability_router(),
-        key,
+        entry.agent_key,
         task,
         resume_agent_id=resume_agent_id,
         extra_hooks=_notify_hooks(),
     )
-    coro = run_with_capture(_pool(), key, task, options, run=run, prompt=prompt)
+    coro = _record_failure(
+        run.run_id,
+        run_with_capture(_pool(), entry.agent_key, task, options, run=run, prompt=prompt),
+    )
+    # registered via the runner (not a bare `await coro`) so a concurrent `check_teammate` sees
+    # `running`, not `stale`, for the whole duration of the wait
+    task_handle = _runner().spawn(run.run_id, coro)
     if wait:
-        await coro
-        return _teammate_status(name, entry)
-    _runner().spawn(run.run_id, coro)
-    return _teammate_status(name, entry)
+        await task_handle
+    return _teammate_status(name)
 
 
 def main() -> None:
