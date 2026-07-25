@@ -196,13 +196,14 @@ def with_hooks(
     *,
     subagents: Mapping[AgentName, AgentSpec] | None = None,
     extra: HookConfig | None = None,
+    file_stem: str | None = None,
 ) -> ClaudeAgentOptions:
     """Augment already-built options to load the main spec's (and any subagents') declarative hooks.
 
     Claude Code hooks are session-wide — a matching tool event fires the hook whichever agent (main
     or a dispatched subagent) triggered it — so one settings file loaded by the top-level options
     covers every agent in the run. The main spec's `hooks` and each subagent spec's `hooks` are
-    therefore merged into ONE `<spec.name>.hooks.json` written under `directory`, and
+    therefore merged into ONE `<file_stem>.hooks.json` written under `directory`, and
     `options.settings` is pointed at it; the SDK's native `--settings` loader already understands
     the exact declarative shape `HookConfig` models, so no callback translation is needed. Follows
     the `with_subagents` append-only `dataclasses.replace` discipline.
@@ -218,6 +219,10 @@ def with_hooks(
             means the main spec's hooks alone.
         extra: A caller-supplied hook config — e.g. the teammate Stop-notification — folded into
             the same settings file as the specs' own hooks.
+        file_stem: The settings file's name (without `.hooks.json`); `spec.name` when None. Callers
+            that pool multiple entries under the same display name (e.g. `prepare_run`, which passes
+            the pooled `agent_key`) must supply a unique stem — the display name is not unique, but
+            the settings file must be, or two entries' writes clobber each other.
 
     Returns:
         A copy of `options` with `settings` pointed at the written file, or `options` unchanged when
@@ -231,7 +236,7 @@ def with_hooks(
     if merged is None:
         return options
     directory.mkdir(parents=True, exist_ok=True)
-    path = directory / f"{spec.name}.hooks.json"
+    path = directory / f"{file_stem or spec.name}.hooks.json"
     path.write_text(
         _HookSettingsFile(hooks=merged).model_dump_json(by_alias=True, exclude_none=True),
         encoding="utf-8",

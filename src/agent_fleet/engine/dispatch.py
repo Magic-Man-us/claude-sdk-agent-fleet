@@ -284,9 +284,16 @@ def prepare_run(
             subagents[name] = sub_entry.spec
         options = with_subagents(options, subagents)
     # after subagents are wired: session-wide hooks fold the main spec's and every subagent's hooks
-    # into one settings file, written to the pool's own writable state directory
+    # into one settings file, written to the pool's own writable state directory. Keyed by
+    # agent_key, not spec.name: display names are not unique across pool entries, so two entries
+    # sharing a name would otherwise clobber each other's settings file.
     options = with_hooks(
-        options, entry.spec, pool.db_path.parent, subagents=subagents, extra=extra_hooks
+        options,
+        entry.spec,
+        pool.db_path.parent,
+        subagents=subagents,
+        extra=extra_hooks,
+        file_stem=agent_key,
     )
     options = with_findings_tool(
         options, pool, agent_key, run.run_id, entry.session_id, agent_name=None

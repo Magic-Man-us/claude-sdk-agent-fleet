@@ -323,3 +323,10 @@ def test_schema_lists_new_tool_and_full_create_params(pool: AgentPool) -> None:
         "reset_session",
     }
     assert set(create_schema["required"]) == {"agent_key", "task"}
+
+
+def test_notify_hooks_is_none_when_unconfigured(
+    pool: AgentPool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("AGENT_FLEET_NOTIFY_COMMAND", raising=False)
+    assert pool_server._notify_hooks() is None

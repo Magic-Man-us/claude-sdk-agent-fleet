@@ -399,6 +399,69 @@ def test_with_hooks_concatenates_same_event_across_specs(tmp_path: Path) -> None
     assert commands == ["./main-guard.sh", "./sub-guard.sh"]  # both fire, no override
 
 
+def test_with_hooks_file_stem_overrides_the_default_spec_name(tmp_path: Path) -> None:
+    spec = AgentSpec(
+        name="researcher",
+        description="Researches a task.",
+        system_prompt="You are researcher. Research the task and stop now.",
+        tools=("Read",),
+        hooks=_hooks("PreToolUse", "./guard.sh"),
+    )
+    options = with_hooks(to_options(spec), spec, tmp_path, file_stem="PROJ-4821")
+    path = tmp_path / "PROJ-4821.hooks.json"
+    assert options.settings == str(path)
+    assert path.exists()
+
+
+def test_with_hooks_extra_on_same_event_as_spec_hooks_keeps_both_handlers(tmp_path: Path) -> None:
+    spec = AgentSpec(
+        name="researcher",
+        description="Researches a task.",
+        system_prompt="You are researcher. Research the task and stop now.",
+        tools=("Read",),
+        hooks=_hooks("Stop", "./spec-stop.sh"),
+    )
+    extra = _hooks("Stop", "./notify.sh")
+    options = with_hooks(to_options(spec), spec, tmp_path, extra=extra)
+    settings = _HookSettingsFile.model_validate_json(
+        Path(options.settings).read_text(encoding="utf-8")
+    )
+    groups = settings.hooks.root[HookEvent.stop]
+    commands = [h.command for group in groups for h in group.hooks]
+    assert commands == ["./spec-stop.sh", "./notify.sh"]
+
+
+def test_with_hooks_extra_none_and_no_spec_hooks_is_still_a_noop(tmp_path: Path) -> None:
+    spec = AgentSpec(
+        name="researcher",
+        description="Researches a task.",
+        system_prompt="You are researcher. Research the task and stop now.",
+        tools=("Read",),
+    )
+    base = to_options(spec)
+    options = with_hooks(base, spec, tmp_path, extra=None)
+    assert options is base
+    assert options.settings is None
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_with_hooks_extra_only_writes_the_stop_group(tmp_path: Path) -> None:
+    spec = AgentSpec(
+        name="researcher",
+        description="Researches a task.",
+        system_prompt="You are researcher. Research the task and stop now.",
+        tools=("Read",),
+    )
+    extra = _hooks("Stop", "./notify.sh")
+    options = with_hooks(to_options(spec), spec, tmp_path, extra=extra)
+    assert options.settings is not None
+    settings = _HookSettingsFile.model_validate_json(
+        Path(options.settings).read_text(encoding="utf-8")
+    )
+    groups = settings.hooks.root[HookEvent.stop]
+    assert [h.command for group in groups for h in group.hooks] == ["./notify.sh"]
+
+
 def test_render_sdk_emits_settings_when_hooks_wired(tmp_path: Path) -> None:
     spec = AgentSpec(
         name="auditor",

@@ -1,13 +1,26 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Annotated
 
-from pydantic import Field
+from pydantic import BeforeValidator, Field
 
 from capdisc.base import FrozenModel
 from capdisc.plugin_catalog import installed_plugin_dirs
 from capdisc.scope import ScopeRoots, default_managed_dir
 from capdisc.settings import DiscoverySettings
+
+NotifyCommand = Annotated[
+    str,
+    Field(
+        min_length=1,
+        title="Notify command",
+        description="Shell command a Stop hook runs when a teammate run finishes. Receives "
+        "Claude Code's hook-input JSON on stdin, which identifies the finished session — a user "
+        "script can disambiguate which teammate fired.",
+        examples=["notify-send teammate-done"],
+    ),
+]
 
 
 class DiscoveryScope(FrozenModel):
@@ -64,9 +77,13 @@ class AgentFleetSettings(DiscoverySettings):
         description="SQLite database backing the pool of named, resumable agent sessions.",
         validation_alias="AGENT_FLEET_POOL_DB",
     )
-    notify_command: str | None = Field(
+    notify_command: Annotated[
+        NotifyCommand | None,
+        BeforeValidator(lambda value: value if isinstance(value, str) and value.strip() else None),
+    ] = Field(
         default=None,
-        description="Shell command a Stop hook runs when a teammate run finishes; None disables.",
+        description="Shell command a Stop hook runs when a teammate run finishes; None (or an "
+        "empty/whitespace-only value) disables it.",
         validation_alias="AGENT_FLEET_NOTIFY_COMMAND",
     )
 

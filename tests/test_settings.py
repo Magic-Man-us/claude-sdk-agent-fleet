@@ -225,3 +225,30 @@ def test_env_overrides_a_path(tmp_path: Path) -> None:
     )
     assert s.mcp_cache == tmp_path / "cache.json"
     assert s.agent_dir == tmp_path / "agents"
+
+
+# ---------------------------------------------------------------------------
+# notify_command — empty/whitespace normalize to None
+# ---------------------------------------------------------------------------
+
+
+def test_notify_command_unset_is_none(tmp_path: Path) -> None:
+    s = _settings_with_json(tmp_path / "missing.json")
+    assert s.notify_command is None
+
+
+def test_notify_command_empty_string_normalizes_to_none(tmp_path: Path) -> None:
+    s = _settings_with_json(tmp_path / "missing.json", AGENT_FLEET_NOTIFY_COMMAND="")
+    assert s.notify_command is None
+
+
+def test_notify_command_whitespace_only_normalizes_to_none(tmp_path: Path) -> None:
+    s = _settings_with_json(tmp_path / "missing.json", AGENT_FLEET_NOTIFY_COMMAND="   ")
+    assert s.notify_command is None
+
+
+def test_notify_command_real_value_is_kept(tmp_path: Path) -> None:
+    s = _settings_with_json(
+        tmp_path / "missing.json", AGENT_FLEET_NOTIFY_COMMAND="notify-send teammate-done"
+    )
+    assert s.notify_command == "notify-send teammate-done"
