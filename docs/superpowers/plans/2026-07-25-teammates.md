@@ -14,7 +14,7 @@
 - The git hook blocks `git commit -m`; write the message to a file and use `git commit -F <file>`.
 - No `import json` — `TypeAdapter`/`model_dump_json` only.
 - Every new domain value gets an `Annotated` alias in `src/agent_fleet/models/agent/types.py`.
-- Gates: `uv run pytest`, `uv run ruff check`, `uv run mypy src` — run from the repo root.
+- Gates: `uv run pytest`, `uv run ruff check`, `uv run ruff format --check .`, `uv run mypy src` — run from the repo root. CI runs the format check on every push, so `uv run ruff format <touched files>` before committing.
 
 ---
 
@@ -1344,7 +1344,7 @@ The pool key is `teammate.{name}`, so the same name always resumes the same conv
 
 - [ ] **Step 3: Run every gate**
 
-Run: `uv run pytest -q && uv run ruff check && uv run mypy src`
+Run: `uv run pytest -q && uv run ruff check && uv run ruff format --check . && uv run mypy src`
 Expected: pytest reports all tests passing, ruff reports no violations, mypy reports no errors.
 Report the actual output — if any gate fails, fix before committing.
 
