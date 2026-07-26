@@ -1,4 +1,4 @@
-"""Change detection: what a run actually touched, proven against real git repositories."""
+"""Isolation and change detection: what a run may touch, proven against real git repositories."""
 
 from __future__ import annotations
 
@@ -8,11 +8,14 @@ from pathlib import Path
 import pytest
 
 from agent_fleet.engine.worktree import (
+    SECRET_ENV_NAMES,
     actual_changes,
     canonical_root,
     fingerprint,
     forbidden_state,
     git_changed_paths,
+    require_isolated_worktree,
+    scrub_secret_env,
 )
 
 
@@ -127,3 +130,44 @@ def test_actual_changes_catches_a_symlink_swap_git_diff_alone_misses(repo: Path)
 def test_actual_changes_is_empty_on_a_clean_tree(repo: Path) -> None:
     before = forbidden_state(repo, ["secret.env"])
     assert actual_changes(repo, ["secret.env"], before) == []
+
+
+@pytest.fixture
+def linked_worktree(repo: Path, tmp_path: Path) -> Path:
+    """A clean, detached-HEAD linked worktree off `repo` — the shape a run is meant to run in."""
+    worktree = tmp_path / "linked"
+    _run_git(repo, "worktree", "add", "--detach", "-q", str(worktree))
+    return worktree
+
+
+def test_require_isolated_worktree_accepts_a_clean_detached_linked_worktree(
+    linked_worktree: Path,
+) -> None:
+    require_isolated_worktree(linked_worktree)
+
+
+def test_require_isolated_worktree_rejects_a_dirty_tree(linked_worktree: Path) -> None:
+    (linked_worktree / "tracked.txt").write_text("dirty\n")
+    with pytest.raises(ValueError, match="clean"):
+        require_isolated_worktree(linked_worktree)
+
+
+def test_require_isolated_worktree_rejects_a_non_detached_head(repo: Path, tmp_path: Path) -> None:
+    worktree = tmp_path / "branched"
+    _run_git(repo, "branch", "other")
+    _run_git(repo, "worktree", "add", "-q", str(worktree), "other")
+    with pytest.raises(ValueError, match="detached-HEAD"):
+        require_isolated_worktree(worktree)
+
+
+def test_require_isolated_worktree_rejects_the_main_worktree(repo: Path) -> None:
+    _run_git(repo, "checkout", "-q", "--detach", "HEAD")
+    with pytest.raises(ValueError, match="linked disposable worktree"):
+        require_isolated_worktree(repo)
+
+
+def test_scrub_secret_env_removes_every_secret_name() -> None:
+    env = dict.fromkeys(SECRET_ENV_NAMES, "leaked") | {"PATH": "/usr/bin"}
+    scrubbed = scrub_secret_env(env)
+    assert not SECRET_ENV_NAMES & scrubbed.keys()
+    assert scrubbed == {"PATH": "/usr/bin"}
