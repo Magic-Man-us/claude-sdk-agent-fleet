@@ -10,6 +10,7 @@ from claude_agent_sdk import ClaudeAgentOptions, Message
 
 from agent_fleet import AgentPool, RunOutcome
 from agent_fleet.engine import acquire_tool, findings_tool
+from agent_fleet.engine.codex_tool import CODEX_SERVER, CODEX_TOOL
 from agent_fleet.engine.render import SEND_MESSAGE_TOOL, SUBAGENT_TOOL
 from agent_fleet.engine.source import InMemoryCatalogSource
 from agent_fleet.models.agent import ModelId
@@ -167,8 +168,10 @@ def test_run_grants_findings_and_acquire_tools(
     assert isinstance(options.mcp_servers, dict)
     assert findings_tool.FINDINGS_SERVER in options.mcp_servers
     assert acquire_tool.ACQUIRE_SERVER in options.mcp_servers
+    assert CODEX_SERVER in options.mcp_servers
     assert findings_tool.WRITE_FINDING_TOOL in options.allowed_tools
     assert acquire_tool.ACQUIRE_TOOL in options.allowed_tools
+    assert CODEX_TOOL in options.allowed_tools
 
 
 def test_run_grants_capability_tools_to_each_subagent(
@@ -192,9 +195,11 @@ def test_run_grants_capability_tools_to_each_subagent(
     assert definition.mcpServers is not None
     assert findings_tool.FINDINGS_SERVER in definition.mcpServers
     assert acquire_tool.ACQUIRE_SERVER in definition.mcpServers
+    assert CODEX_SERVER in definition.mcpServers
     assert definition.tools is not None
     assert findings_tool.WRITE_FINDING_TOOL in definition.tools
     assert acquire_tool.ACQUIRE_TOOL in definition.tools
+    assert CODEX_TOOL in definition.tools
 
 
 def test_run_missing_agent_raises(pool: AgentPool) -> None:

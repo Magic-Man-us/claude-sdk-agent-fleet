@@ -28,6 +28,7 @@ from ..models.agent import (
     TaskBrief,
 )
 from ..router.capability import CapabilityRouter
+from .codex_tool import current_codex_policy, grant_codex_to_subagent, with_codex_tool
 from .findings_tool import grant_findings_to_subagent, with_findings_tool
 from .pool import AgentPool
 from .render import SUBAGENT_TOOL, with_agent_resume, with_hooks, with_subagents
@@ -297,13 +298,18 @@ def prepare_run(
         extra=extra_hooks,
         file_stem=agent_key,
     )
+    codex_policy = current_codex_policy()
+    options = with_codex_tool(options, codex_policy)
     options = with_findings_tool(
         options, pool, agent_key, run.run_id, entry.session_id, agent_name=None
     )
     options = with_acquire_tool(options, capability_router, pool, agent_key)
     if options.agents:
         agents = {
-            name: grant_acquire_to_subagent(grant_findings_to_subagent(definition))
+            name: grant_codex_to_subagent(
+                grant_acquire_to_subagent(grant_findings_to_subagent(definition)),
+                enabled=codex_policy is not None,
+            )
             for name, definition in options.agents.items()
         }
         options = dataclasses.replace(options, agents=agents)

@@ -5,6 +5,7 @@ from pathlib import Path
 from claude_agent_sdk import ClaudeAgentOptions
 
 from agent_fleet import AgentSpec
+from agent_fleet.engine.codex_tool import CODEX_SERVER, CODEX_TOOL
 from agent_fleet.engine.render import (
     SUBAGENT_TOOL,
     _HookSettingsFile,
@@ -79,7 +80,7 @@ def test_render_sdk_emits_constructible_options() -> None:
     assert "from claude_agent_sdk import ClaudeAgentOptions, query" in code
     options = _load_options(code)
     assert isinstance(options, ClaudeAgentOptions)
-    assert options.allowed_tools == ["Read", "Grep"]
+    assert options.allowed_tools == ["Read", "Grep", CODEX_TOOL]
     assert options.skills == ["appsec-audit"]
 
 
@@ -149,9 +150,10 @@ def test_render_sdk_loads_mcp_from_environment_without_baking_config() -> None:
     options = _load_options(code)
     # security model: tools are gated by name and config loads from the user's environment;
     # the server's command/url/credentials never enter generated code
-    assert options.allowed_tools == ["mcp__plugin-playwright-playwright__*"]
+    assert options.allowed_tools == ["mcp__plugin-playwright-playwright__*", CODEX_TOOL]
     assert options.setting_sources == ["user", "project"]
-    assert options.mcp_servers == {}  # never baked into the emitted program
+    # Selected environment servers are never baked in; the guarded in-process Codex worker is.
+    assert set(options.mcp_servers) == {CODEX_SERVER}
     assert "mcp_servers=" not in code
 
 

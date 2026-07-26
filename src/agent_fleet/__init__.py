@@ -15,6 +15,16 @@ from .engine.acquire_tool import (
     grant_acquire_to_subagent,
     with_acquire_tool,
 )
+from .engine.codex_tool import (
+    CodexPolicy,
+    CodexResult,
+    CodexRunArgs,
+    build_codex_server,
+    current_codex_policy,
+    grant_codex_to_subagent,
+    run_codex,
+    with_codex_tool,
+)
 from .engine.dispatch import run_with_capture
 from .engine.efficiency import EfficiencyConfig, EfficiencyReport, score
 from .engine.emit import write_agent
@@ -68,6 +78,9 @@ __all__ = [
     "CatalogSkill",
     "CatalogSource",
     "CatalogTool",
+    "CodexPolicy",
+    "CodexResult",
+    "CodexRunArgs",
     "EfficiencyConfig",
     "EfficiencyReport",
     "Finding",
@@ -87,13 +100,17 @@ __all__ = [
     "ToolCard",
     "assemble",
     "build_acquire_server",
+    "build_codex_server",
     "build_findings_server",
     "create_agent",
+    "current_codex_policy",
     "generate",
     "grant_acquire_to_subagent",
+    "grant_codex_to_subagent",
     "grant_findings_to_subagent",
     "render_claude_sdk",
     "run_agent",
+    "run_codex",
     "run_with_capture",
     "scan_environment",
     "scan_skills",
@@ -103,6 +120,7 @@ __all__ = [
     "to_agent_definition",
     "to_options",
     "with_acquire_tool",
+    "with_codex_tool",
     "with_findings_tool",
     "with_hooks",
     "with_subagents",
