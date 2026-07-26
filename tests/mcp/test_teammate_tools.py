@@ -11,7 +11,7 @@ from claude_agent_sdk import ClaudeAgentOptions, Message
 from agent_fleet import AgentPool
 from agent_fleet.engine.render import SEND_MESSAGE_TOOL
 from agent_fleet.engine.source import InMemoryCatalogSource
-from agent_fleet.engine.teammates import ROSTER
+from agent_fleet.engine.teammates import DEFAULT_ROSTER
 from agent_fleet.models.agent import RUN_ERROR_MAX, TeammateRunStatus, teammate_key
 from agent_fleet.router.capability import CapabilityRouter
 from agent_fleet_mcp import pool_server
@@ -19,7 +19,7 @@ from agent_fleet_mcp.runner import TeammateRunner
 from capdisc.catalog import Catalog
 from test_dispatch import _assistant
 
-_NAME = ROSTER[0].name
+_NAME = DEFAULT_ROSTER.teammates[0].name
 _TASK = "run the roster teammate against a synthetic task"
 
 
@@ -33,6 +33,8 @@ def pool(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> AgentPool:
         pool_server, "_capability_router", lambda: CapabilityRouter([], [], [], [], {})
     )
     monkeypatch.setattr(pool_server, "_runner", lambda: runner)
+    # pin the roster: without this the suite reads whatever roster file the developer has
+    monkeypatch.setattr(pool_server, "_roster", lambda: DEFAULT_ROSTER)
     return built
 
 
@@ -70,7 +72,7 @@ def test_schema_teammate_param_descriptions_reach_the_tools() -> None:
 
 def test_roster_lists_templates_unspawned(pool: AgentPool) -> None:
     entries = pool_server.roster()
-    assert [e.template.name for e in entries] == [t.name for t in ROSTER]
+    assert [e.template.name for e in entries] == [t.name for t in DEFAULT_ROSTER.teammates]
     assert all(e.status is TeammateRunStatus.unspawned for e in entries)
 
 

@@ -12,7 +12,7 @@ from agent_fleet.engine.dispatch import prepare_run, run_with_capture
 from agent_fleet.engine.pool import AgentPool
 from agent_fleet.engine.pool import create_agent as pool_create_agent
 from agent_fleet.engine.source import CatalogSource, InMemoryCatalogSource
-from agent_fleet.engine.teammates import ROSTER, resolve_template, template_request
+from agent_fleet.engine.teammates import build_teammate, current_roster, resolve_template
 from agent_fleet.models.agent import (
     DEFAULT_TEAM,
     TEAMMATE_KEY_PREFIX,
@@ -28,11 +28,13 @@ from agent_fleet.models.agent import (
     ProblemRequest,
     PromptBody,
     RosterEntry,
+    RosterFile,
     RunError,
     RunId,
     RunOutcome,
     RunRecord,
     TaskBrief,
+    TeammateBuild,
     TeammateName,
     TeammateRunStatus,
     TeammateStatus,
@@ -110,20 +112,55 @@ def _runner() -> TeammateRunner:
     return TeammateRunner()
 
 
+@cache
+def _roster() -> RosterFile:
+    """The roster in force, once, on first use.
+
+    Cached like the other process-wide accessors, so a long-lived server does not re-read and
+    re-validate the file on every call. Restart the server to pick up an edited roster.
+    """
+    return current_roster()
+
+
+def _build(name: AgentName) -> TeammateBuild:
+    """Expand teammate `name` into its request and subagent list.
+
+    Raises:
+        ValueError: When `name` is not on the roster.
+    """
+    roster = _roster()
+    return build_teammate(
+        resolve_template(name, roster),
+        roster,
+        subagent_model=AgentFleetSettings().subagent_model,
+    )
+
+
 def _ensure_teammate(name: AgentName, *, fresh_session: bool = False) -> PoolEntry:
     """The pool entry for teammate `name`, creating it from its roster template when absent.
 
     Raises:
         ValueError: When `name` is not on the roster.
     """
-    template = resolve_template(name)
     key = teammate_key(name)
     entry = _pool().get_by_key(key)
     if entry is not None and not fresh_session:
         return entry
     return pool_create_agent(
-        key, template_request(template), _source(), _pool(), reset_session=fresh_session
+        key, _build(name).request, _source(), _pool(), reset_session=fresh_session
     )
+
+
+def _subagent_keys(name: AgentName) -> dict[AgentName, AgentKey]:
+    """The teammate's toolkit-granted agents, as the subagent name → pool key mapping a run wants.
+
+    Each named agent is itself a roster teammate, so its entry is stood up on demand — dispatching
+    to a teammate that has never been spawned works without the caller sequencing it.
+    """
+    keys: dict[AgentName, AgentKey] = {}
+    for agent in _build(name).agents:
+        keys[agent] = _ensure_teammate(agent).agent_key
+    return keys
 
 
 def _notify_hooks() -> HookConfig | None:
@@ -459,7 +496,7 @@ def roster() -> list[RosterEntry]:
         latest run (`unspawned` before first spawn), and its session id once it exists.
     """
     entries: list[RosterEntry] = []
-    for template in ROSTER:
+    for template in _roster().teammates:
         status = _teammate_status(template.name)
         entries.append(
             RosterEntry(template=template, status=status.status, session_id=status.session_id)
@@ -483,7 +520,7 @@ def check_teammate(name: TeammateName) -> TeammateStatus:
     Raises:
         ValueError: When `name` is not on the roster.
     """
-    resolve_template(name)  # the roster gate: an off-roster name raises before any pool read
+    resolve_template(name, _roster())  # roster gate: an off-roster name raises before any pool read
     return _teammate_status(name)
 
 
@@ -513,13 +550,18 @@ async def spawn_teammate(
     Raises:
         ValueError: When `name` is not on the roster.
     """
-    resolve_template(name)
+    resolve_template(name, _roster())
     key = teammate_key(name)
     if _live_run(key) is not None:
         return _teammate_status(name)
     entry = _ensure_teammate(name, fresh_session=fresh_session)
     run, options, prompt = prepare_run(
-        _pool(), _capability_router(), entry.agent_key, task, extra_hooks=_notify_hooks()
+        _pool(),
+        _capability_router(),
+        entry.agent_key,
+        task,
+        subagent_agent_keys=_subagent_keys(name),
+        extra_hooks=_notify_hooks(),
     )
     _runner().spawn(
         run.run_id,
@@ -561,7 +603,7 @@ async def message_teammate(
     Raises:
         ValueError: When `name` is not on the roster.
     """
-    resolve_template(name)
+    resolve_template(name, _roster())
     key = teammate_key(name)
     live = _live_run(key)
     if live is not None:
@@ -578,6 +620,7 @@ async def message_teammate(
         _capability_router(),
         entry.agent_key,
         task,
+        subagent_agent_keys=_subagent_keys(name),
         resume_agent_id=resume_agent_id,
         extra_hooks=_notify_hooks(),
     )

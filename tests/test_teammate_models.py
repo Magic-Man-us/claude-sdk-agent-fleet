@@ -74,11 +74,25 @@ def test_template_defaults() -> None:
     assert template.model.value == "inherit"
 
 
-def test_toolkit_requires_valid_entries() -> None:
-    kit = Toolkit(name="pydantic-review", entries=["skill-pydantic-type-discipline"])
-    assert kit.entries == ["skill-pydantic-type-discipline"]
+def test_toolkit_holds_each_grant_kind_separately() -> None:
+    kit = Toolkit(
+        name="pydantic-review",
+        skills=["pydantic-type-discipline"],
+        mcp_servers=["dq"],
+        tools=["Read"],
+        agents=["researcher"],
+    )
+    assert kit.skills == ["pydantic-type-discipline"]
+    assert kit.mcp_servers == ["dq"]
+    assert kit.tools == ["Read"]
+    assert kit.agents == ["researcher"]
+
+
+def test_teammate_key_validates_the_name_it_is_given() -> None:
+    """@validate_call, so AgentName's pattern fires on a plain call instead of minting a bad key."""
+    assert teammate_key("reviewer") == "teammate.reviewer"
     with pytest.raises(ValidationError):
-        Toolkit(name="pydantic-review", entries=["Skill Alpha"])
+        teammate_key("Not A Name")
 
 
 def test_toolkit_rejects_empty_entries() -> None:

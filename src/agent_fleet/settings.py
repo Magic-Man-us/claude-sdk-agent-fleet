@@ -95,6 +95,22 @@ class AgentFleetSettings(DiscoverySettings):
         "empty/whitespace-only value) disables it.",
         validation_alias="AGENT_FLEET_NOTIFY_COMMAND",
     )
+    roster: Path | None = Field(
+        default=None,
+        description="Explicit path to a roster TOML file; None falls back to the project file "
+        "then the user file, then the roster shipped with this package.",
+        validation_alias="AGENT_FLEET_ROSTER",
+    )
+    subagent_model: Annotated[
+        str | None,
+        BeforeValidator(_blank_to_none),
+    ] = Field(
+        default=None,
+        description="Claude Code's own subagent-model override, honoured here because a teammate "
+        "is a subagent of its caller. Wins over a template's model; 'inherit' (or unset) defers "
+        "to the template.",
+        validation_alias="CLAUDE_CODE_SUBAGENT_MODEL",
+    )
 
     def discovery_scope(
         self,

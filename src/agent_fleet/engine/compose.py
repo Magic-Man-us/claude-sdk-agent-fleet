@@ -18,10 +18,13 @@ def compose(request: ProblemRequest, selection: SelectedCapabilities) -> AgentSp
         from the task and selected tools/skills.
     """
     name = request.name or slugify_name(request.task)
+    # Selection order first, then any directly granted tool it did not already choose, so a grant
+    # is additive and the prompt lists tools in a stable order.
+    tools = [*selection.tools, *(ref for ref in request.tools if ref not in selection.tools)]
     prompt = TemplatedPrompt(
         name=name,
         task=request.task,
-        tools=selection.tools,
+        tools=tools,
         skills=selection.skills,
     )
     return AgentSpec(
@@ -30,7 +33,7 @@ def compose(request: ProblemRequest, selection: SelectedCapabilities) -> AgentSp
         system_prompt=request.system_prompt or prompt.body,
         model=request.model,
         tags=request.tags,
-        tools=selection.tools,
+        tools=tools,
         skills=selection.skills,
         mcp_servers=selection.mcp_servers,
     )
