@@ -3,6 +3,14 @@ from __future__ import annotations
 from .pool import AgentRunRecord, Finding, PoolEntry, RunOutcome, RunRecord
 from .prompt import PromptSection, TemplatedPrompt
 from .request import ProblemRequest
+from .scope import (
+    GLOB_CHARS,
+    PROTECTED_PARTS,
+    WHOLE_REPO,
+    RunMode,
+    RunScope,
+    ScopePattern,
+)
 from .spec import AgentSpec
 from .teammate import (
     TEAMMATE_KEY_PREFIX,
@@ -68,13 +76,16 @@ __all__ = [
     "DEFAULT_SKILL_BUDGET",
     "DEFAULT_TEAM",
     "DEFAULT_TOOL_BUDGET",
+    "GLOB_CHARS",
     "PROMPT_MAX",
     "PROMPT_MIN",
     "PROMPT_TOKEN_MAX",
+    "PROTECTED_PARTS",
     "RUN_ERROR_MAX",
     "RUN_OUTPUT_MAX",
     "TASK_TOKEN_MAX",
     "TEAMMATE_KEY_PREFIX",
+    "WHOLE_REPO",
     "AdaptiveThinking",
     "AgentColor",
     "AgentDescription",
@@ -105,9 +116,12 @@ __all__ = [
     "RosterFile",
     "RunError",
     "RunId",
+    "RunMode",
     "RunOutcome",
     "RunOutput",
     "RunRecord",
+    "RunScope",
+    "ScopePattern",
     "SectionTag",
     "SessionId",
     "SkillBudget",
