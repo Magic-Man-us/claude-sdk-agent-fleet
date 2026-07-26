@@ -14,7 +14,7 @@ from agent_fleet.engine.render import SEND_MESSAGE_TOOL, SUBAGENT_TOOL
 from agent_fleet.engine.source import InMemoryCatalogSource
 from agent_fleet.models.agent import ModelId
 from agent_fleet.router.capability import CapabilityRouter
-from agent_fleet_mcp import pool_server
+from agent_fleet_mcp import context, pool_server
 from capdisc.catalog import Catalog
 from test_dispatch import (
     _assistant,
@@ -53,11 +53,9 @@ def _fake_query_capturing(messages: list[Message], captured: list[ClaudeAgentOpt
 @pytest.fixture
 def pool(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> AgentPool:
     built = AgentPool(tmp_path / "pool.db")
-    monkeypatch.setattr(pool_server, "_pool", lambda: built)
-    monkeypatch.setattr(pool_server, "_source", lambda: InMemoryCatalogSource(Catalog(entries=[])))
-    monkeypatch.setattr(
-        pool_server, "_capability_router", lambda: CapabilityRouter([], [], [], [], {})
-    )
+    monkeypatch.setattr(context, "pool", lambda: built)
+    monkeypatch.setattr(context, "source", lambda: InMemoryCatalogSource(Catalog(entries=[])))
+    monkeypatch.setattr(context, "capability_router", lambda: CapabilityRouter([], [], [], [], {}))
     return built
 
 
@@ -292,7 +290,7 @@ def test_list_agent_runs_unknown_run_is_empty(pool: AgentPool) -> None:
 def test_create_agent_full_parity(
     pool: AgentPool, monkeypatch: pytest.MonkeyPatch, catalog: Catalog
 ) -> None:
-    monkeypatch.setattr(pool_server, "_source", lambda: InMemoryCatalogSource(catalog))
+    monkeypatch.setattr(context, "source", lambda: InMemoryCatalogSource(catalog))
     override = "You are a security auditor. Report the findings you confirm and nothing else."
 
     created = pool_server.create_agent(
@@ -334,4 +332,4 @@ def test_notify_hooks_is_none_when_unconfigured(
     pool: AgentPool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("AGENT_FLEET_NOTIFY_COMMAND", raising=False)
-    assert pool_server._notify_hooks() is None
+    assert context.notify_hooks() is None

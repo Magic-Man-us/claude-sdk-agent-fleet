@@ -50,6 +50,7 @@ skill-router = "agent_fleet.router.mcp_server:main"
 agent-fleet-api = "agent_fleet_api.app:main"
 agent-fleet-openapi = "agent_fleet_api.schema:main"
 pool-mcp = "agent_fleet_mcp.pool_server:main"
+teammate-mcp = "agent_fleet_mcp.teammate_server:main"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
