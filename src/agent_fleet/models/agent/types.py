@@ -288,12 +288,12 @@ RunError = Annotated[
         f"{RUN_ERROR_MAX} characters is truncated to that bound.",
     ),
 ]
-FreshSession = Annotated[
+ResumeSession = Annotated[
     bool,
     Field(
-        title="Fresh session",
-        description="Mint a new session UUID for the teammate first, discarding its "
-        "conversation history.",
+        title="Resume",
+        description="Continue the teammate's standing session, keeping everything it already "
+        "knows; False mints a new session UUID first, discarding that history.",
     ),
 ]
 AwaitRun = Annotated[
@@ -326,5 +326,8 @@ TeammateTurn = Annotated[
 ]
 
 DEFAULT_TEAM = "default"
-DEFAULT_TOOL_BUDGET = 8
+#: Headroom for the whole built-in tool set plus a few MCP grants. The default grant is every
+#: built-in tool, so a budget below that count would fail an agent for taking exactly what it
+#: was given; narrowing comes from observed use (a roster entry naming `tools`), not here.
+DEFAULT_TOOL_BUDGET = 16
 DEFAULT_SKILL_BUDGET = 4

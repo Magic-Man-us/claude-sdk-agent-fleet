@@ -59,15 +59,17 @@ def test_schema_teammate_param_descriptions_reach_the_tools() -> None:
     tools = asyncio.run(pool_server.mcp.list_tools())
     by_name = {tool.name: tool for tool in tools}
 
-    check_schema = by_name["check_teammate"].parameters
-    assert "roster" in check_schema["properties"]["name"]["description"].lower()
+    # every teammate tool points the caller at roster() for valid names
+    for tool in ("check_teammate", "run_teammate", "dismiss_teammate"):
+        schema = by_name[tool].parameters
+        assert "roster" in schema["properties"]["name"]["description"].lower(), tool
 
-    message_schema = by_name["message_teammate"].parameters
-    assert "roster" in message_schema["properties"]["name"]["description"].lower()
-    assert "standing session" in message_schema["properties"]["task"]["description"].lower()
-
-    spawn_schema = by_name["spawn_teammate"].parameters
-    assert "roster" in spawn_schema["properties"]["name"]["description"].lower()
+    run_schema = by_name["run_teammate"].parameters
+    assert "standing session" in run_schema["properties"]["resume"]["description"].lower()
+    # the one invocation carries the variants as flags rather than spawning sibling tools
+    assert {"resume", "wait", "resume_agent_id"} <= set(run_schema["properties"])
+    assert "spawn_teammate" not in by_name
+    assert "message_teammate" not in by_name
 
 
 def test_roster_lists_templates_unspawned(pool: AgentPool) -> None:
@@ -101,12 +103,12 @@ def test_spawn_runs_in_background_and_persists(
 
         monkeypatch.setattr("agent_fleet.engine.dispatch.query", gated)
 
-        status = await pool_server.spawn_teammate(_NAME, _TASK)
+        status = await pool_server.run_teammate(_NAME, _TASK)
         assert status.status is TeammateRunStatus.running
         assert status.run_id is not None
 
         # spawning again while running returns the live run, not a second one
-        again = await pool_server.spawn_teammate(_NAME, _TASK)
+        again = await pool_server.run_teammate(_NAME, _TASK)
         assert again.run_id == status.run_id
 
         release.set()
@@ -138,7 +140,7 @@ def test_message_wait_returns_finished_status(
             "agent_fleet.engine.dispatch.query",
             _fake_query([_assistant("sync reply", session_id=entry.session_id)]),
         )
-        status = await pool_server.message_teammate(_NAME, _TASK, wait=True)
+        status = await pool_server.run_teammate(_NAME, _TASK, wait=True)
         assert status.status is TeammateRunStatus.finished
         assert status.output == "sync reply"
         # re-messaging revived the SAME standing session, not a fresh one
@@ -164,7 +166,7 @@ def test_notify_command_folds_a_stop_hook_into_settings(
             yield _assistant("ok then", session_id=entry.session_id)
 
         monkeypatch.setattr("agent_fleet.engine.dispatch.query", capturing)
-        await pool_server.message_teammate(_NAME, _TASK, wait=True)
+        await pool_server.run_teammate(_NAME, _TASK, wait=True)
 
         options = captured[0]
         assert options.settings is not None
@@ -182,7 +184,7 @@ def test_spawn_failure_marks_run_failed(pool: AgentPool, monkeypatch: pytest.Mon
             "agent_fleet.engine.dispatch.query",
             _fake_query_then_raise([_assistant("partial", session_id=entry.session_id)]),
         )
-        status = await pool_server.spawn_teammate(_NAME, _TASK)
+        status = await pool_server.run_teammate(_NAME, _TASK)
         assert status.status is TeammateRunStatus.running
 
         await pool_server._runner().wait_all()
@@ -208,7 +210,7 @@ def test_spawn_failure_with_overlong_text_is_bounded_on_write(
 
         monkeypatch.setattr("agent_fleet.engine.dispatch.query", raising)
 
-        status = await pool_server.spawn_teammate(_NAME, _TASK)
+        status = await pool_server.run_teammate(_NAME, _TASK)
         assert status.status is TeammateRunStatus.running
 
         await pool_server._runner().wait_all()
@@ -246,7 +248,7 @@ def test_message_wait_raises_and_marks_run_failed(
         )
 
         with pytest.raises(RuntimeError, match="boom mid-stream"):
-            await pool_server.message_teammate(_NAME, _TASK, wait=True)
+            await pool_server.run_teammate(_NAME, _TASK, wait=True)
 
         failed = pool_server.check_teammate(_NAME)
         assert failed.status is TeammateRunStatus.failed
@@ -270,7 +272,7 @@ def test_delete_mid_run_preserves_original_failure_and_logs_the_deletion(
 
         monkeypatch.setattr("agent_fleet.engine.dispatch.query", gated)
 
-        status = await pool_server.spawn_teammate(_NAME, _TASK)
+        status = await pool_server.run_teammate(_NAME, _TASK)
         assert status.run_id is not None
         task_handle = pool_server._runner().task_for(status.run_id)
         assert task_handle is not None
@@ -311,7 +313,7 @@ def test_message_wait_registers_before_awaiting_so_concurrent_check_sees_running
 
         monkeypatch.setattr("agent_fleet.engine.dispatch.query", gated)
 
-        wait_task = asyncio.create_task(pool_server.message_teammate(_NAME, _TASK, wait=True))
+        wait_task = asyncio.create_task(pool_server.run_teammate(_NAME, _TASK, wait=True))
         # the runner registers the task synchronously before message_teammate's first await, so
         # waiting for the stream to actually start guarantees registration already happened
         await entered.wait()
@@ -340,10 +342,10 @@ def test_message_while_running_returns_live_status_without_opening_second_run(
 
         monkeypatch.setattr("agent_fleet.engine.dispatch.query", gated)
 
-        first = await pool_server.spawn_teammate(_NAME, _TASK)
+        first = await pool_server.run_teammate(_NAME, _TASK)
         assert first.status is TeammateRunStatus.running
 
-        second = await pool_server.message_teammate(_NAME, "a second turn sent while busy")
+        second = await pool_server.run_teammate(_NAME, "a second turn sent while busy")
         assert second.run_id == first.run_id  # no new run was opened
 
         release.set()
@@ -367,11 +369,11 @@ def test_message_wait_on_a_live_run_waits_for_it_and_reports_terminal(
 
         monkeypatch.setattr("agent_fleet.engine.dispatch.query", gated)
 
-        first = await pool_server.spawn_teammate(_NAME, _TASK)
+        first = await pool_server.run_teammate(_NAME, _TASK)
         assert first.status is TeammateRunStatus.running
 
         wait_task = asyncio.create_task(
-            pool_server.message_teammate(_NAME, "a second turn sent while busy", wait=True)
+            pool_server.run_teammate(_NAME, "a second turn sent while busy", wait=True)
         )
         await asyncio.sleep(0)
         await asyncio.sleep(0)
@@ -402,11 +404,11 @@ def test_spawn_fresh_session_ignored_while_run_is_live(
 
         monkeypatch.setattr("agent_fleet.engine.dispatch.query", gated)
 
-        first = await pool_server.spawn_teammate(_NAME, _TASK)
+        first = await pool_server.run_teammate(_NAME, _TASK)
         assert first.status is TeammateRunStatus.running
         original_session = first.session_id
 
-        again = await pool_server.spawn_teammate(_NAME, _TASK, fresh_session=True)
+        again = await pool_server.run_teammate(_NAME, _TASK, resume=False)
         assert again.run_id == first.run_id  # same live run, not reset/requeued
         assert again.session_id == original_session  # the live session was NOT reset
 
@@ -423,7 +425,7 @@ def test_spawn_fresh_session_changes_session_id_when_idle(
         original = pool_server._ensure_teammate(_NAME)
         monkeypatch.setattr("agent_fleet.engine.dispatch.query", _fake_query([]))
 
-        await pool_server.spawn_teammate(_NAME, _TASK, fresh_session=True)
+        await pool_server.run_teammate(_NAME, _TASK, resume=False)
         await pool_server._runner().wait_all()
 
         revived = pool.get_by_key(teammate_key(_NAME))
@@ -448,7 +450,7 @@ def test_message_default_backgrounds_then_finishes(
 
         monkeypatch.setattr("agent_fleet.engine.dispatch.query", gated)
 
-        status = await pool_server.message_teammate(_NAME, _TASK)
+        status = await pool_server.run_teammate(_NAME, _TASK)
         assert status.status is TeammateRunStatus.running
 
         release.set()
@@ -475,9 +477,7 @@ def test_message_resume_agent_id_grants_send_message_and_wraps_prompt(
 
         monkeypatch.setattr("agent_fleet.engine.dispatch.query", capturing)
 
-        status = await pool_server.message_teammate(
-            _NAME, _TASK, wait=True, resume_agent_id=agent_id
-        )
+        status = await pool_server.run_teammate(_NAME, _TASK, wait=True, resume_agent_id=agent_id)
         assert status.status is TeammateRunStatus.finished
 
         assert len(captured) == 1
@@ -498,7 +498,7 @@ def test_roster_after_spawn_shows_populated_row(
     async def scenario() -> None:
         monkeypatch.setattr("agent_fleet.engine.dispatch.query", _fake_query([]))
 
-        await pool_server.spawn_teammate(_NAME, _TASK)
+        await pool_server.run_teammate(_NAME, _TASK)
 
         entries = pool_server.roster()
         row = next(e for e in entries if e.template.name == _NAME)

@@ -18,9 +18,9 @@ def compose(request: ProblemRequest, selection: SelectedCapabilities) -> AgentSp
         from the task and selected tools/skills.
     """
     name = request.name or slugify_name(request.task)
-    # Selection order first, then any directly granted tool it did not already choose, so a grant
-    # is additive and the prompt lists tools in a stable order.
-    tools = [*selection.tools, *(ref for ref in request.tools if ref not in selection.tools)]
+    # A request that names tools is an allowlist, not an addition: the default grant is
+    # everything, so narrowing has to be able to take things away. Naming none keeps the default.
+    tools = request.tools or selection.tools
     prompt = TemplatedPrompt(
         name=name,
         task=request.task,

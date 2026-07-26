@@ -19,18 +19,15 @@ from .source import Candidate
 
 logger = logging.getLogger(__name__)
 
-# The fixed tool grant every generated agent receives. Built-in tools are provisioned, not
-# retrieved: their descriptions are mechanical and never match a task's goal language, so lexical
-# recall can't surface them. This set covers inspect (Read/Glob/Grep), modify (Write/Edit), and
-# run (Bash) — the working core of almost any task.
-DEFAULT_TOOLS: list[ToolRef] = [
-    BuiltinTool.read.value,
-    BuiltinTool.glob.value,
-    BuiltinTool.grep.value,
-    BuiltinTool.write.value,
-    BuiltinTool.edit.value,
-    BuiltinTool.bash.value,
-]
+# The tool grant an agent receives when its request names none. Built-in tools are provisioned,
+# not retrieved: their descriptions are mechanical and never match a task's goal language, so
+# lexical recall cannot surface them.
+#
+# Deliberately everything. Guessing a narrower set up front produces agents that quietly cannot do
+# the job and give no clear signal why. Granting all of them and then narrowing from observed use
+# — a request that names `tools` gets exactly those, so a roster entry is the whole restriction —
+# is the direction that ends with a grant backed by evidence rather than by guesswork.
+DEFAULT_TOOLS: list[ToolRef] = [tool.value for tool in BuiltinTool]
 
 
 class SelectedCapabilities(FrozenModel):

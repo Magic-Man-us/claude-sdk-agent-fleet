@@ -19,8 +19,8 @@ class ProblemRequest(FrozenModel):
     model choice, pinned capability ids, directly granted tools, and a system-prompt override.
 
     `pinned` and `tools` differ by mechanism, not preference: pinned ids are catalog entries kept
-    past the relevance filter during selection, while tools are granted outright because the
-    selector does not score tools."""
+    past the relevance filter during selection, while `tools` is an outright allowlist — naming
+    any replaces the default grant, and naming none keeps it."""
 
     task: TaskBrief
     name: AgentName | None = None

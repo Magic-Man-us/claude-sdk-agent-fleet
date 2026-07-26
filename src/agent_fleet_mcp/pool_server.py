@@ -22,11 +22,11 @@ from agent_fleet.models.agent import (
     AgentRunRecord,
     AwaitRun,
     Finding,
-    FreshSession,
     ModelId,
     PoolEntry,
     ProblemRequest,
     PromptBody,
+    ResumeSession,
     RosterEntry,
     RosterFile,
     RunError,
@@ -525,80 +525,41 @@ def check_teammate(name: TeammateName) -> TeammateStatus:
 
 
 @mcp.tool
-async def spawn_teammate(
-    name: TeammateName, task: TaskBrief, fresh_session: FreshSession = False
-) -> TeammateStatus:
-    """Stand the teammate up (creating its pool entry from the roster template when absent) and
-    run `task` in the background, returning immediately.
-
-    When the teammate's latest run is still live, the task is NOT queued: the returned status
-    describes that already-running run rather than opening a second one against the same session
-    — re-send after it finishes. This liveness check runs before `fresh_session` takes effect, so
-    a live run's session can't be reset out from under it.
-
-    Deliberately `async def` with no `await` before the spawn: `TeammateRunner.spawn` needs the
-    currently-running event loop, which only exists because this coroutine itself executes on it
-    — a threadpool execution (e.g. an `asyncio.to_thread` wrapper) would break it.
-
-    Args:
-        name: The teammate to spawn; valid names come from `roster()`.
-        task: What to run — the entry's first turn, or a new turn on an existing standing
-            session.
-        fresh_session: Mint a new session UUID for the teammate first, discarding its
-            conversation history. Skipped when the latest run is still live.
-
-    Raises:
-        ValueError: When `name` is not on the roster.
-    """
-    resolve_template(name, _roster())
-    key = teammate_key(name)
-    if _live_run(key) is not None:
-        return _teammate_status(name)
-    entry = _ensure_teammate(name, fresh_session=fresh_session)
-    run, options, prompt = prepare_run(
-        _pool(),
-        _capability_router(),
-        entry.agent_key,
-        task,
-        subagent_agent_keys=_subagent_keys(name),
-        extra_hooks=_notify_hooks(),
-    )
-    _runner().spawn(
-        run.run_id,
-        _record_failure(
-            run.run_id,
-            run_with_capture(_pool(), entry.agent_key, task, options, run=run, prompt=prompt),
-        ),
-    )
-    return _teammate_status(name)
-
-
-@mcp.tool
-async def message_teammate(
+async def run_teammate(
     name: TeammateName,
     task: TeammateTurn,
+    resume: ResumeSession = True,
     wait: AwaitRun = False,
     resume_agent_id: AgentId | None = None,
 ) -> TeammateStatus:
-    """Revive the teammate's standing session with a new turn (creating the entry from its
-    template when absent). `task` here is a conversational turn sent to that standing session,
-    not an agent-generation brief. Backgrounded by default; `wait=True` blocks until the run
-    finishes, re-raising any exception the run raised (the row is stamped `failed` with the error
-    text before it propagates) and otherwise returning the outcome on the status.
+    """Run `task` on the teammate — the one way to invoke one.
 
-    Same live-run guard as `spawn_teammate`: when the latest run is still live, this turn is NOT
-    queued — the returned status describes the already-running run instead of opening a second
-    one against the same session. With `wait=True` against a busy teammate, that means waiting for
-    the LIVE run (not your turn — it was never sent) and reporting its terminal status once it
-    finishes; with `wait=False` the current status returns immediately, as always.
+    There is deliberately no separate spawn-versus-message pair: standing a teammate up and
+    sending it another turn are the same operation, differing only in whether the existing session
+    continues. The entry is created from its roster template when absent, so the first call and
+    the hundredth look identical to the caller.
+
+    When the teammate's latest run is still live, `task` is NOT queued: the returned status
+    describes that already-running run rather than opening a second one against the same session
+    — re-send after it finishes. That check runs before `resume` takes effect, so a live run's
+    session cannot be reset out from under it. With `wait=True` against a busy teammate, this
+    waits for the LIVE run (not your turn — it was never sent) and reports its terminal status.
+
+    Deliberately `async def` with no `await` before the spawn: `TeammateRunner.spawn` needs the
+    currently-running event loop, which exists only because this coroutine executes on it — a
+    threadpool execution (e.g. an `asyncio.to_thread` wrapper) would break it.
 
     Args:
-        name: The teammate to message; valid names come from `roster()`.
-        task: The conversational turn to send to the teammate's standing session.
-        wait: Block until the run finishes and return its outcome on the status; False
-            backgrounds the run and returns immediately.
-        resume_agent_id: When set, continue one specific previously-dispatched subagent, as in
-            `run_agent`.
+        name: The teammate to run; valid names come from `roster()`.
+        task: The turn to send. On a resumed session this is conversational — it continues an
+            existing thread rather than restating the teammate's job.
+        resume: Continue the teammate's standing session, keeping everything it already knows.
+            False mints a new session UUID first, discarding that history — use it when the
+            accumulated context has gone stale rather than helpful. Ignored while a run is live.
+        wait: Block until the run finishes and return its outcome on the status, re-raising
+            whatever the run raised (the row is stamped `failed` with the error text first).
+            False backgrounds the run and returns immediately.
+        resume_agent_id: Continue one specific previously-dispatched subagent of this teammate.
 
     Raises:
         ValueError: When `name` is not on the roster.
@@ -614,7 +575,7 @@ async def message_teammate(
                 # caller is a bystander to someone else's run and must not receive its failure
                 await asyncio.gather(live_task, return_exceptions=True)
         return _teammate_status(name)
-    entry = _ensure_teammate(name)
+    entry = _ensure_teammate(name, fresh_session=not resume)
     run, options, prompt = prepare_run(
         _pool(),
         _capability_router(),
@@ -634,6 +595,27 @@ async def message_teammate(
     if wait:
         await task_handle
     return _teammate_status(name)
+
+
+@mcp.tool
+def dismiss_teammate(name: TeammateName) -> bool:
+    """Forget the teammate's standing session, discarding its conversation and run history.
+
+    The roster entry is untouched — the next `run_teammate` rebuilds the teammate from its
+    template with a clean session. This is the deliberate way to clear context that has gone
+    stale; it is not a way to remove a teammate from the roster, which is the file's job.
+
+    Args:
+        name: The teammate to dismiss; valid names come from `roster()`.
+
+    Returns:
+        True when a standing session existed and was discarded, False when there was none.
+
+    Raises:
+        ValueError: When `name` is not on the roster.
+    """
+    resolve_template(name, _roster())
+    return _pool().delete(teammate_key(name))
 
 
 def main() -> None:
