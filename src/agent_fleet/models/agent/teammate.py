@@ -11,9 +11,11 @@ from .request import ProblemRequest
 from .types import (
     AgentKey,
     AgentName,
+    CodexModelId,
     CostUsd,
     ModelId,
     PromptBody,
+    Provider,
     RunError,
     RunId,
     RunOutput,
@@ -64,7 +66,13 @@ class Toolkit(FrozenModel):
 
 
 class TeammateTemplate(FrozenModel):
-    """One roster entry: the name a teammate is addressed by and what it is built from."""
+    """One roster entry: the name a teammate is addressed by and what it is built from.
+
+    `provider`/`codex_model` declare which backend the roster author intends this teammate to run
+    on; `run_teammate`'s own `provider` argument is what actually decides it per call. `codex_model`
+    is required exactly when `provider` is `codex` — Codex has no equivalent of `ModelId.inherit`,
+    so the choice cannot be silently deferred.
+    """
 
     name: AgentName
     brief: TaskBrief
@@ -72,6 +80,17 @@ class TeammateTemplate(FrozenModel):
     tags: list[Tag] = []
     model: ModelId = ModelId.inherit
     system_prompt: PromptBody | None = None
+    provider: Provider = Provider.claude
+    codex_model: CodexModelId | None = None
+
+    @model_validator(mode="after")
+    def _codex_model_set_iff_codex_provider(self) -> TeammateTemplate:
+        """Reject a template that names a codex model without provider=codex, or vice versa."""
+        if (self.provider is Provider.codex) != (self.codex_model is not None):
+            raise ValueError(
+                f"teammate {self.name!r}: codex_model must be set if and only if provider is codex"
+            )
+        return self
 
 
 class RosterFile(FrozenModel):

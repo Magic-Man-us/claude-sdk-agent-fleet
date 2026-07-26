@@ -7,7 +7,9 @@ from agent_fleet.models.agent import (
     RUN_ERROR_MAX,
     RUN_OUTPUT_MAX,
     AgentKey,
+    CodexModelId,
     CostUsd,
+    Provider,
     RunError,
     RunOutput,
     TeammateRunStatus,
@@ -72,6 +74,37 @@ def test_template_defaults() -> None:
     )
     assert template.toolkits == []
     assert template.model.value == "inherit"
+    assert template.provider is Provider.claude
+    assert template.codex_model is None
+
+
+def test_template_accepts_a_codex_provider_with_its_model() -> None:
+    template = TeammateTemplate(
+        name="reviewer",
+        brief="Review code changes for correctness and regressions.",
+        provider=Provider.codex,
+        codex_model=CodexModelId.gpt_5_6_sol,
+    )
+    assert template.provider is Provider.codex
+    assert template.codex_model is CodexModelId.gpt_5_6_sol
+
+
+def test_template_rejects_codex_model_without_codex_provider() -> None:
+    with pytest.raises(ValidationError, match="codex_model must be set"):
+        TeammateTemplate(
+            name="reviewer",
+            brief="Review code changes for correctness and regressions.",
+            codex_model=CodexModelId.gpt_5_6_sol,
+        )
+
+
+def test_template_rejects_codex_provider_without_a_codex_model() -> None:
+    with pytest.raises(ValidationError, match="codex_model must be set"):
+        TeammateTemplate(
+            name="reviewer",
+            brief="Review code changes for correctness and regressions.",
+            provider=Provider.codex,
+        )
 
 
 def test_toolkit_holds_each_grant_kind_separately() -> None:

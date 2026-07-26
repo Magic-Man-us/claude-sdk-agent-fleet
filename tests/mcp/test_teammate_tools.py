@@ -12,7 +12,18 @@ from agent_fleet import AgentPool
 from agent_fleet.engine.render import SEND_MESSAGE_TOOL
 from agent_fleet.engine.source import InMemoryCatalogSource
 from agent_fleet.engine.teammates import DEFAULT_ROSTER
-from agent_fleet.models.agent import RUN_ERROR_MAX, TeammateRunStatus, teammate_key
+from agent_fleet.models.agent import (
+    RUN_ERROR_MAX,
+    CodexModelId,
+    CodexRunConfig,
+    CodexRunRequest,
+    Provider,
+    RunMode,
+    RunOutcome,
+    RunScope,
+    TeammateRunStatus,
+    teammate_key,
+)
 from agent_fleet.router.capability import CapabilityRouter
 from agent_fleet_mcp import context, teammate_server
 from agent_fleet_mcp.runner import TeammateRunner
@@ -488,6 +499,50 @@ def test_message_resume_agent_id_grants_send_message_and_wraps_prompt(
         assert isinstance(prompt, str)
         assert f"Resume agent {agent_id}" in prompt
         assert _TASK in prompt
+
+    asyncio.run(scenario())
+
+
+def test_run_teammate_codex_provider_dispatches_run_codex_capture(
+    pool: AgentPool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        captured: dict[str, object] = {}
+
+        async def fake_codex_capture(pool_arg, agent_key_arg, task_arg, request_arg, *, run=None):
+            captured["agent_key"] = agent_key_arg
+            captured["request"] = request_arg
+            started = run if run is not None else pool_arg.start_run(agent_key_arg, task_arg)
+            return RunOutcome(
+                output="codex reply",
+                run=pool_arg.finish_run(started.run_id, output="codex reply"),
+                agent_runs=[],
+            )
+
+        monkeypatch.setattr("agent_fleet.engine.dispatch.run_codex_capture", fake_codex_capture)
+        codex_config = CodexRunConfig(
+            cwd=tmp_path,
+            scope=RunScope(mode=RunMode.read),
+            model=CodexModelId.gpt_5_6_sol,
+            timeout_s=60,
+        )
+        status = await teammate_server.run_teammate(
+            _NAME, _TASK, wait=True, provider=Provider.codex, codex=codex_config
+        )
+
+        assert status.status is TeammateRunStatus.finished
+        assert status.output == "codex reply"
+        assert captured["agent_key"] == teammate_key(_NAME)
+        assert isinstance(captured["request"], CodexRunRequest)
+        assert captured["request"].cwd == tmp_path
+
+    asyncio.run(scenario())
+
+
+def test_run_teammate_codex_provider_without_config_raises(pool: AgentPool) -> None:
+    async def scenario() -> None:
+        with pytest.raises(ValueError, match="codex run settings are required"):
+            await teammate_server.run_teammate(_NAME, _TASK, provider=Provider.codex)
 
     asyncio.run(scenario())
 

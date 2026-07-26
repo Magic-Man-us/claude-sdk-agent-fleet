@@ -10,11 +10,13 @@ import asyncio
 
 from fastmcp import FastMCP
 
-from agent_fleet.engine.dispatch import prepare_run, run_with_capture
+from agent_fleet.engine.dispatch import prepare_provider_run, run_provider_capture
 from agent_fleet.engine.teammates import resolve_template
 from agent_fleet.models.agent import (
     AgentId,
     AwaitRun,
+    CodexRunConfig,
+    Provider,
     ResumeSession,
     RosterEntry,
     TeammateName,
@@ -74,6 +76,8 @@ async def run_teammate(
     resume: ResumeSession = True,
     wait: AwaitRun = False,
     resume_agent_id: AgentId | None = None,
+    provider: Provider = Provider.claude,
+    codex: CodexRunConfig | None = None,
 ) -> TeammateStatus:
     """Run `task` on the teammate — the one way to invoke one.
 
@@ -103,9 +107,15 @@ async def run_teammate(
             whatever the run raised (the row is stamped `failed` with the error text first).
             False backgrounds the run and returns immediately.
         resume_agent_id: Continue one specific previously-dispatched subagent of this teammate.
+            Claude only — raises if given together with `provider=codex`.
+        provider: Which backend runs this turn. `resume` is accepted but inert for `codex`: every
+            Codex call is an independent turn, since Codex's `exec` mode takes no thread-id input.
+        codex: Codex run settings (cwd, scope, model, timeout); required when `provider` is
+            `codex`, ignored otherwise.
 
     Raises:
-        ValueError: When `name` is not on the roster.
+        ValueError: When `name` is not on the roster, or `provider=codex` is combined with
+            `resume_agent_id`, a teammate whose toolkits wire subagents, or a missing `codex`.
     """
     resolve_template(name, context.roster_in_force())
     key = teammate_key(name)
@@ -119,7 +129,7 @@ async def run_teammate(
                 await asyncio.gather(live_task, return_exceptions=True)
         return context.teammate_status(name)
     entry = context.ensure_teammate(name, fresh_session=not resume)
-    run, options, prompt = prepare_run(
+    run, request, _prompt = prepare_provider_run(
         context.pool(),
         context.capability_router(),
         entry.agent_key,
@@ -127,10 +137,12 @@ async def run_teammate(
         subagent_agent_keys=context.subagent_keys(name),
         resume_agent_id=resume_agent_id,
         extra_hooks=context.notify_hooks(),
+        provider=provider,
+        codex=codex,
     )
     coro = context.record_failure(
         run.run_id,
-        run_with_capture(context.pool(), entry.agent_key, task, options, run=run, prompt=prompt),
+        run_provider_capture(context.pool(), entry.agent_key, task, request, run=run),
     )
     # registered via the runner (not a bare `await coro`) so a concurrent `check_teammate` sees
     # `running`, not `stale`, for the whole duration of the wait

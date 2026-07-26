@@ -78,6 +78,21 @@ class SectionTag(StrEnum):
     instructions = "instructions"
 
 
+class Provider(StrEnum):
+    """Which backend runs a teammate's turn."""
+
+    claude = "claude"
+    codex = "codex"
+
+
+class CodexModelId(StrEnum):
+    """Codex's own model namespace — disjoint from Claude's `ModelId`; a fake shared enum would
+    claim an overlap that does not exist."""
+
+    gpt_5_6_sol = "gpt-5.6-sol"
+    gpt_5_6_terra = "gpt-5.6-terra"
+
+
 TASK_TOKEN_MAX = 2400
 PROMPT_TOKEN_MAX = 6000
 PROMPT_MIN = 40
@@ -323,6 +338,27 @@ TeammateTurn = Annotated[
         examples=["Take another pass over the diff and flag anything you missed."],
     ),
     token_bounds(TASK_TOKEN_MAX),
+]
+ProviderSessionId = Annotated[
+    str,
+    Field(
+        min_length=1,
+        max_length=200,
+        title="Provider session ID",
+        description="The backend's own opaque resumable/thread handle. Format is provider-defined "
+        "— NOT constrained to Claude's UUID SessionId shape.",
+        examples=["fixture-thread"],
+    ),
+]
+CodexTimeoutSeconds = Annotated[
+    int,
+    Field(
+        ge=1,
+        le=7200,
+        title="Codex timeout (seconds)",
+        description="Most seconds a Codex exec turn may run before it is killed.",
+        examples=[1800],
+    ),
 ]
 
 DEFAULT_TEAM = "default"

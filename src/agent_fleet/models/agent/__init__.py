@@ -2,6 +2,12 @@ from __future__ import annotations
 
 from .pool import AgentRunRecord, Finding, PoolEntry, RunOutcome, RunRecord
 from .prompt import PromptSection, TemplatedPrompt
+from .provider_run import (
+    ClaudeRunRequest,
+    CodexRunConfig,
+    CodexRunRequest,
+    ProviderRunRequest,
+)
 from .request import ProblemRequest
 from .scope import (
     GLOB_CHARS,
@@ -48,6 +54,8 @@ from .types import (
     AgentKey,
     AgentName,
     AwaitRun,
+    CodexModelId,
+    CodexTimeoutSeconds,
     CostUsd,
     FindingContent,
     InitialPrompt,
@@ -57,6 +65,8 @@ from .types import (
     ModelId,
     PermissionMode,
     PromptBody,
+    Provider,
+    ProviderSessionId,
     ResumeSession,
     RunError,
     RunId,
@@ -96,6 +106,11 @@ __all__ = [
     "AgentRunRecord",
     "AgentSpec",
     "AwaitRun",
+    "ClaudeRunRequest",
+    "CodexModelId",
+    "CodexRunConfig",
+    "CodexRunRequest",
+    "CodexTimeoutSeconds",
     "CostUsd",
     "DisabledThinking",
     "EnabledThinking",
@@ -111,6 +126,9 @@ __all__ = [
     "ProblemRequest",
     "PromptBody",
     "PromptSection",
+    "Provider",
+    "ProviderRunRequest",
+    "ProviderSessionId",
     "ResumeSession",
     "RosterEntry",
     "RosterFile",

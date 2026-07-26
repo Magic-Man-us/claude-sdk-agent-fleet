@@ -17,8 +17,18 @@ from claude_agent_sdk import (
 )
 
 from agent_fleet import AgentPool, AgentSpec, RunOutcome
-from agent_fleet.engine.dispatch import run_with_capture
-from agent_fleet.models.agent import RUN_OUTPUT_MAX
+from agent_fleet.engine.dispatch import prepare_provider_run, run_provider_capture, run_with_capture
+from agent_fleet.models.agent import (
+    RUN_OUTPUT_MAX,
+    ClaudeRunRequest,
+    CodexModelId,
+    CodexRunConfig,
+    CodexRunRequest,
+    Provider,
+    RunMode,
+    RunScope,
+)
+from agent_fleet.router.capability import CapabilityRouter
 
 _PROMPT = "You are auditor. Audit the code for vulnerabilities and stop."
 _AGENT_KEY = "PROJ-4821"
@@ -317,3 +327,133 @@ def test_finished_run_row_carries_structured_output_and_cost(
     assert stored.output == "captured text"
     assert stored.structured_output == {"verdict": "clean"}
     assert stored.total_cost_usd == 0.0042
+
+
+def _router() -> CapabilityRouter:
+    return CapabilityRouter([], [], [], [], {})
+
+
+def _codex_config(tmp_path: Path) -> CodexRunConfig:
+    return CodexRunConfig(
+        cwd=tmp_path,
+        scope=RunScope(mode=RunMode.read),
+        model=CodexModelId.gpt_5_6_sol,
+        timeout_s=60,
+    )
+
+
+def test_prepare_provider_run_claude_wraps_prepare_run_options(tmp_path: Path) -> None:
+    pool = _pool(tmp_path)
+    entry = pool.save(_AGENT_KEY, _spec())
+    run, request, prompt = prepare_provider_run(pool, _router(), entry.agent_key, _TASK)
+
+    assert isinstance(request, ClaudeRunRequest)
+    assert request.options.resume is None  # first run: fresh session, not a resume
+    assert prompt is None
+    assert run.task == _TASK
+
+
+def test_prepare_provider_run_codex_derives_developer_instructions_from_the_spec(
+    tmp_path: Path,
+) -> None:
+    pool = _pool(tmp_path)
+    entry = pool.save(_AGENT_KEY, _spec())
+    run, request, prompt = prepare_provider_run(
+        pool,
+        _router(),
+        entry.agent_key,
+        _TASK,
+        provider=Provider.codex,
+        codex=_codex_config(tmp_path),
+    )
+
+    assert isinstance(request, CodexRunRequest)
+    assert request.developer_instructions == _PROMPT
+    assert prompt is None
+    assert run.task == _TASK
+    assert len(pool.list_runs(_AGENT_KEY)) == 1  # start_run was called exactly once
+
+
+def test_prepare_provider_run_codex_requires_codex_settings(tmp_path: Path) -> None:
+    pool = _pool(tmp_path)
+    entry = pool.save(_AGENT_KEY, _spec())
+    with pytest.raises(ValueError, match="codex run settings are required"):
+        prepare_provider_run(pool, _router(), entry.agent_key, _TASK, provider=Provider.codex)
+
+
+def test_prepare_provider_run_codex_rejects_resume_agent_id(tmp_path: Path) -> None:
+    pool = _pool(tmp_path)
+    entry = pool.save(_AGENT_KEY, _spec())
+    with pytest.raises(ValueError, match="neither subagent dispatch nor resume_agent_id"):
+        prepare_provider_run(
+            pool,
+            _router(),
+            entry.agent_key,
+            _TASK,
+            provider=Provider.codex,
+            codex=_codex_config(tmp_path),
+            resume_agent_id="abc123def456",
+        )
+
+
+def test_prepare_provider_run_codex_rejects_subagent_keys(tmp_path: Path) -> None:
+    pool = _pool(tmp_path)
+    entry = pool.save(_AGENT_KEY, _spec())
+    with pytest.raises(ValueError, match="neither subagent dispatch nor resume_agent_id"):
+        prepare_provider_run(
+            pool,
+            _router(),
+            entry.agent_key,
+            _TASK,
+            provider=Provider.codex,
+            codex=_codex_config(tmp_path),
+            subagent_agent_keys={"reviewer": "teammate.reviewer"},
+        )
+
+
+def test_run_provider_capture_dispatches_claude_requests_through_run_with_capture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pool = _pool(tmp_path)
+    entry = pool.save(_AGENT_KEY, _spec())
+    messages: list[Message] = [
+        _assistant("hello via provider dispatch", session_id=entry.session_id)
+    ]
+    monkeypatch.setattr("agent_fleet.engine.dispatch.query", _fake_query(messages))
+
+    request = ClaudeRunRequest(options=pool.to_new_run_options(entry))
+    outcome = asyncio.run(run_provider_capture(pool, _AGENT_KEY, _TASK, request))
+
+    assert outcome.output == "hello via provider dispatch"
+
+
+def test_run_provider_capture_dispatches_codex_requests_through_run_codex_capture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pool = _pool(tmp_path)
+    entry = pool.save(_AGENT_KEY, _spec())
+    captured: dict[str, object] = {}
+
+    async def _fake_codex(pool_arg, agent_key_arg, task_arg, request_arg, *, run=None):
+        captured["agent_key"] = agent_key_arg
+        captured["request"] = request_arg
+        started = pool_arg.start_run(agent_key_arg, task_arg)
+        return RunOutcome(
+            output="codex result",
+            run=pool_arg.finish_run(started.run_id, output="codex result"),
+            agent_runs=[],
+        )
+
+    monkeypatch.setattr("agent_fleet.engine.dispatch.run_codex_capture", _fake_codex)
+    request = CodexRunRequest(
+        cwd=tmp_path,
+        scope=RunScope(mode=RunMode.read),
+        model=CodexModelId.gpt_5_6_sol,
+        timeout_s=60,
+        developer_instructions=_PROMPT,
+    )
+    outcome = asyncio.run(run_provider_capture(pool, entry.agent_key, _TASK, request))
+
+    assert outcome.output == "codex result"
+    assert captured["agent_key"] == entry.agent_key
+    assert captured["request"] is request

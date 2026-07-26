@@ -21,6 +21,11 @@ from ..models.agent import (
     AgentKey,
     AgentName,
     AgentSpec,
+    ClaudeRunRequest,
+    CodexRunConfig,
+    CodexRunRequest,
+    Provider,
+    ProviderRunRequest,
     RunOutcome,
     RunOutput,
     RunRecord,
@@ -30,6 +35,7 @@ from ..models.agent import (
 from ..router.capability import CapabilityRouter
 from .findings_tool import grant_findings_to_subagent, with_findings_tool
 from .pool import AgentPool
+from .providers.codex import run_codex_capture
 from .render import SUBAGENT_TOOL, with_agent_resume, with_hooks, with_subagents
 
 _TASK_BRIEF_ADAPTER: TypeAdapter[TaskBrief] = TypeAdapter(TaskBrief)
@@ -312,3 +318,112 @@ def prepare_run(
         options = with_agent_resume(options)
         prompt = build_resume_prompt(resume_agent_id, task)
     return run, options, prompt
+
+
+def prepare_provider_run(
+    pool: AgentPool,
+    capability_router: CapabilityRouter,
+    agent_key: AgentKey,
+    task: TaskBrief,
+    *,
+    subagent_agent_keys: dict[AgentName, AgentKey] | None = None,
+    resume_agent_id: AgentId | None = None,
+    extra_hooks: HookConfig | None = None,
+    provider: Provider = Provider.claude,
+    codex: CodexRunConfig | None = None,
+) -> tuple[RunRecord, ProviderRunRequest, TaskBrief | None]:
+    """The provider-dispatching sibling of `prepare_run`: same Claude wiring for `Provider.claude`,
+    a Codex turn for `Provider.codex` — the single preparation step `run_teammate` (the one way to
+    invoke a specialist agent) calls regardless of which backend it addresses.
+
+    Kept separate from `prepare_run` rather than folded into it: `prepare_run`'s existing return
+    type (`ClaudeAgentOptions`, not a `ProviderRunRequest`) is exactly what its other callers (the
+    pool and HTTP API run routes) already depend on, and widening it would ripple a Codex-shaped
+    type through call sites this change does not touch. This wraps `prepare_run`'s Claude-path
+    result in `ClaudeRunRequest` instead of changing what `prepare_run` returns.
+
+    Codex has no subagent-dispatch or resume-specific-subagent concept, so both are rejected up
+    front rather than silently ignored — a caller that wired either while asking for
+    `Provider.codex` has a real bug in what it granted.
+
+    Args:
+        pool: The pool the run is recorded in and every entry is resolved from.
+        capability_router: The router the Claude acquire tool equips acquired agents from; unused
+            on the Codex path.
+        agent_key: The pooled agent to run; its entry must exist for both providers.
+        task: The first user turn and the run's recorded task.
+        subagent_agent_keys: Claude-only: a subagent name -> pooled `agent_key` mapping to wire in.
+        resume_agent_id: Claude-only: resume this specific previously-dispatched subagent.
+        extra_hooks: Claude-only: hooks folded into the run's settings file.
+        provider: Which backend to prepare the run for.
+        codex: The Codex run settings; required when `provider` is `Provider.codex`.
+
+    Returns:
+        The started run record, the discriminated run request, and (Claude only) the literal
+        prompt to send in place of `task`.
+
+    Raises:
+        KeyError: The main entry (or, on the Claude path, a named subagent) is absent.
+        ValueError: `provider` is `Provider.codex` and either `subagent_agent_keys` or
+            `resume_agent_id` was given, or `codex` was not.
+    """
+    if provider is Provider.codex:
+        if subagent_agent_keys or resume_agent_id is not None:
+            raise ValueError(
+                "codex provider supports neither subagent dispatch nor resume_agent_id"
+            )
+        if codex is None:
+            raise ValueError("codex run settings are required when provider is codex")
+        entry = pool.get_by_key(agent_key)
+        if entry is None:
+            raise KeyError(agent_key)
+        run = pool.start_run(agent_key, task)
+        request: ProviderRunRequest = CodexRunRequest(
+            cwd=codex.cwd,
+            scope=codex.scope,
+            model=codex.model,
+            timeout_s=codex.timeout_s,
+            developer_instructions=entry.spec.system_prompt,
+            output_schema_path=codex.output_schema_path,
+        )
+        return run, request, None
+    run, options, prompt = prepare_run(
+        pool,
+        capability_router,
+        agent_key,
+        task,
+        subagent_agent_keys=subagent_agent_keys,
+        resume_agent_id=resume_agent_id,
+        extra_hooks=extra_hooks,
+    )
+    return run, ClaudeRunRequest(options=options, prompt=prompt), prompt
+
+
+async def run_provider_capture(
+    pool: AgentPool,
+    agent_key: AgentKey,
+    task: TaskBrief,
+    request: ProviderRunRequest,
+    *,
+    run: RunRecord | None = None,
+) -> RunOutcome:
+    """Run `request` live on whichever backend it names — the provider-dispatching sibling of
+    `run_with_capture` that `run_teammate` calls after `prepare_provider_run`.
+
+    Args:
+        pool: The pool the run and its captured agent(s) are recorded in.
+        agent_key: The pooled agent this run belongs to.
+        task: The run's recorded task.
+        request: The discriminated run request from `prepare_provider_run`.
+        run: An already-started run record, or None to start one here.
+
+    Returns:
+        The run's outcome, from `run_with_capture` (Claude) or `run_codex_capture` (Codex).
+    """
+    match request:
+        case ClaudeRunRequest():
+            return await run_with_capture(
+                pool, agent_key, task, request.options, run=run, prompt=request.prompt
+            )
+        case CodexRunRequest():
+            return await run_codex_capture(pool, agent_key, task, request, run=run)
