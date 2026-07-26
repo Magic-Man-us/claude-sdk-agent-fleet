@@ -21,11 +21,13 @@ def compose(request: ProblemRequest, selection: SelectedCapabilities) -> AgentSp
     # A request that names tools is an allowlist, not an addition: the default grant is
     # everything, so narrowing has to be able to take things away. Naming none keeps the default.
     tools = request.tools or selection.tools
+    # None means "choose for me"; a list (even empty) is the caller's exact answer
+    skills = selection.skills if request.skills is None else request.skills
     prompt = TemplatedPrompt(
         name=name,
         task=request.task,
         tools=tools,
-        skills=selection.skills,
+        skills=skills,
     )
     return AgentSpec(
         name=name,
@@ -34,6 +36,6 @@ def compose(request: ProblemRequest, selection: SelectedCapabilities) -> AgentSp
         model=request.model,
         tags=request.tags,
         tools=tools,
-        skills=selection.skills,
+        skills=skills,
         mcp_servers=selection.mcp_servers,
     )

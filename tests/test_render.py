@@ -120,7 +120,7 @@ def test_render_sdk_emits_definition_fields_when_set() -> None:
         permission_mode=PermissionMode.accept_edits,
     )
     options = _load_options(render_claude_sdk(spec))
-    assert options.disallowed_tools == ["Bash(rm:*)"]
+    assert options.disallowed_tools[0] == "Bash(rm:*)"  # the spec's own denial comes first
     assert options.max_turns == 15
     assert options.permission_mode == "acceptEdits"  # SDK literal value
 
@@ -133,7 +133,7 @@ def test_render_sdk_omits_definition_fields_by_default() -> None:
         tools=("Read",),
     )
     options = _load_options(render_claude_sdk(spec))
-    assert not options.disallowed_tools  # kwarg omitted → SDK default
+    assert "Bash" in options.disallowed_tools  # ungranted built-ins are withheld explicitly
     assert options.max_turns is None
     assert options.permission_mode is None
 

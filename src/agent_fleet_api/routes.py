@@ -49,7 +49,7 @@ def _reject_teammate_namespace(agent_key: AgentKey) -> None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"agent keys under {TEAMMATE_KEY_PREFIX!r} are reserved for the teammate "
-            "surface; use the MCP spawn_teammate/message_teammate tools instead",
+            "surface; use the MCP run_teammate tool instead",
         )
 
 

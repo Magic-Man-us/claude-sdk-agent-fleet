@@ -3,7 +3,9 @@ from __future__ import annotations
 import re
 from collections import Counter
 from math import log
-from typing import Protocol
+from typing import Annotated, Protocol
+
+from pydantic import Field
 
 from capdisc.base import FrozenModel
 from capdisc.catalog import (
@@ -77,6 +79,9 @@ class Candidate(FrozenModel):
 
     entry: CatalogEntry
     score: RelevanceScore
+    #: BM25's own scale, kept because `score` cannot express "nothing here matches": it is
+    #: divided by the best hit, so the top entry is 1.0 even for a query nothing answers.
+    raw_score: Annotated[float, Field(ge=0.0)] = 0.0
 
 
 class CatalogSource(Protocol):
@@ -101,10 +106,10 @@ BM25_K1 = 1.5
 BM25_B = 0.75
 
 
-def bm25_normalized(
+def bm25_raw(
     query_terms: list[str], docs: list[list[str]], k1: float = BM25_K1, b: float = BM25_B
 ) -> list[float]:
-    """Okapi BM25 of each tokenized doc against the query terms, normalized to [0,1].
+    """Okapi BM25 of each tokenized doc against the query terms, unnormalized.
 
     Args:
         query_terms: Already-tokenized, deduplicated query terms (sorted for stable summation).
@@ -113,8 +118,8 @@ def bm25_normalized(
         b: BM25 length-normalization strength.
 
     Returns:
-        One score per doc (same order), divided by the top raw score — best match 1.0, non-match
-        0.0. All-zero when there are no query terms or no docs.
+        One score per doc (same order) on BM25's own scale, where the magnitude means match
+        strength rather than rank. All-zero when there are no query terms or no docs.
     """
     if not query_terms or not docs:
         return [0.0 for _ in docs]
@@ -134,7 +139,20 @@ def bm25_normalized(
                 if term in freq
             )
         )
-    top = max(raw)
+    return raw
+
+
+def bm25_normalized(
+    query_terms: list[str], docs: list[list[str]], k1: float = BM25_K1, b: float = BM25_B
+) -> list[float]:
+    """`bm25_raw` rescaled so the best match in this candidate set is 1.0.
+
+    Good for ORDERING and nothing else: the division makes the top hit 1.0 no matter how weak the
+    underlying match is, so a query that matches nothing still produces a perfect score. Anything
+    deciding whether an entry is relevant at all must read the raw score instead.
+    """
+    raw = bm25_raw(query_terms, docs, k1, b)
+    top = max(raw, default=0.0)
     return [value / top if top > 0.0 else 0.0 for value in raw]
 
 
@@ -161,10 +179,12 @@ class BM25Ranker:
         """
         terms = sorted(set(token_list(query.text)))  # sorted → sum order is hash-seed-stable
         docs = [token_list(_entry_text(entry)) for entry in entries]
-        scores = bm25_normalized(terms, docs, self._k1, self._b)
+        raw = bm25_raw(terms, docs, self._k1, self._b)
+        top = max(raw, default=0.0)
+        scores = [value / top if top > 0.0 else 0.0 for value in raw]
         return [
-            Candidate(entry=entry, score=score)
-            for entry, score in zip(entries, scores, strict=True)
+            Candidate(entry=entry, score=score, raw_score=raw_score)
+            for entry, score, raw_score in zip(entries, scores, raw, strict=True)
         ]
 
 

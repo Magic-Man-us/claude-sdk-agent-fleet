@@ -30,6 +30,20 @@ logger = logging.getLogger(__name__)
 DEFAULT_TOOLS: list[ToolRef] = [tool.value for tool in BuiltinTool]
 
 
+#: Minimum BM25 score for an entry to count as relevant at all. `RELEVANCE_THRESHOLD` cannot
+#: express this: normalized scores are divided by the best hit, so the top entry reads 1.0 even
+#: for a query nothing answers — which is why a brief about greeting someone was equipping four
+#: unrelated skills. Chosen by measuring this catalog: genuine matches score 13-26 while the best
+#: junk match reaches 5.6, and 6.0 is the highest floor that keeps every true positive. It is
+#: corpus-dependent, so re-measure rather than assume it after the catalog changes shape.
+MIN_RAW_RELEVANCE = 6.0
+
+
+def _is_relevant(candidate: Candidate) -> bool:
+    """Whether a candidate is worth equipping — relatively ranked AND absolutely a match."""
+    return candidate.score >= RELEVANCE_THRESHOLD and candidate.raw_score >= MIN_RAW_RELEVANCE
+
+
 class SelectedCapabilities(FrozenModel):
     """Skills, tools, and MCP servers chosen to equip one generated agent."""
 
@@ -127,7 +141,7 @@ def select(candidates: list[Candidate], request: ProblemRequest) -> SelectedCapa
     for c in candidates:
         reason = (
             "below_threshold"
-            if c.entry.id not in pinned and c.score < RELEVANCE_THRESHOLD
+            if c.entry.id not in pinned and not _is_relevant(c)
             else _equip(c.entry, sel)
         )
         if reason:

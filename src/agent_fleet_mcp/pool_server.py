@@ -74,7 +74,7 @@ def create_agent(
     if agent_key.startswith(TEAMMATE_KEY_PREFIX):
         raise ValueError(
             f"agent keys under {TEAMMATE_KEY_PREFIX!r} are reserved for the teammate surface; "
-            "use spawn_teammate"
+            "use run_teammate"
         )
     request = ProblemRequest(
         task=task,
@@ -136,7 +136,7 @@ def delete_agent(agent_key: AgentKey) -> bool:
     """Remove the pooled entry stored under `agent_key`.
 
     This is also the legitimate dismissal path for a teammate: deleting its `teammate.*` entry
-    discards its standing conversation, and the next `spawn_teammate`/`message_teammate` call
+    discards its standing conversation, and the next `run_teammate` call
     re-creates it fresh from its roster template. No guard against the teammate namespace here —
     unlike `create_agent`/`run_agent`, dismissal is intentional deletion, not accidental bypass.
     Dismissing a teammate with a live run discards that run's record along with the entry, and the
@@ -258,7 +258,7 @@ async def run_agent(
         raise ValueError(
             f"agent keys under {TEAMMATE_KEY_PREFIX!r} are reserved for the teammate surface; "
             "running one through run_agent bypasses the background-run registry (a live run "
-            "would read as stale) and skips the notify hook — use spawn_teammate/message_teammate"
+            "would read as stale) and skips the notify hook — use run_teammate"
         )
     pool = context.pool()
     try:

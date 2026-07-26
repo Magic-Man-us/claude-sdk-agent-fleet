@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from capdisc.base import FrozenModel
-from capdisc.catalog import CatalogEntryId, Tag, ToolRef
+from capdisc.catalog import CatalogEntryId, SkillRef, Tag, ToolRef
 
 from .types import (
     DEFAULT_TEAM,
@@ -29,4 +29,7 @@ class ProblemRequest(FrozenModel):
     model: ModelId = ModelId.inherit
     pinned: list[CatalogEntryId] = []
     tools: list[ToolRef] = []
+    #: None auto-selects skills by relevance; a list is exact, and `[]` genuinely means none.
+    #: Selecting no skills is what keeps a run from loading the user's settings at all.
+    skills: list[SkillRef] | None = None
     system_prompt: PromptBody | None = None

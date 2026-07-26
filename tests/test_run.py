@@ -47,8 +47,12 @@ def test_to_options_minimal_spec_loads_no_environment() -> None:
     assert options.model is None
     assert options.effort is None
     assert options.skills is None
-    assert options.setting_sources is None  # no skills/mcp → settings are not loaded
-    assert options.disallowed_tools == []  # SDK default; the field is list[str], not optional
+    # [] not None: None is the SDK default, which loads the user's CLAUDE.md/plugins/skills
+    assert options.setting_sources == []
+    # the ungranted built-ins are named so the SDK actually withholds them (and drops their
+    # schemas from context); an allowed_tools subset alone does not
+    assert "Bash" in options.disallowed_tools
+    assert "Read" not in options.disallowed_tools  # granted, so never withheld
     assert options.max_turns is None
     assert options.permission_mode is None
 
@@ -64,7 +68,7 @@ def test_to_options_emits_definition_fields_when_set() -> None:
         permission_mode=PermissionMode.accept_edits,
     )
     options = to_options(spec)
-    assert options.disallowed_tools == ["Bash(rm:*)"]
+    assert options.disallowed_tools[0] == "Bash(rm:*)"  # the spec's own denial comes first
     assert options.max_turns == 15
     assert options.permission_mode == "acceptEdits"
 

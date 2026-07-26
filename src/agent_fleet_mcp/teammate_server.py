@@ -54,7 +54,7 @@ def check_teammate(name: TeammateName) -> TeammateStatus:
 
     `stale` means an unfinished run this server process doesn't own — this process died mid-run,
     or another process is running it (`pool.db` can be shared) — the session itself is intact, so
-    `message_teammate` resumes the conversation. `failed` means the run raised; its text is on
+    `run_teammate` resumes the conversation. `failed` means the run raised; its text is on
     `TeammateStatus.error`.
 
     Args:
@@ -76,7 +76,7 @@ async def run_teammate(
     resume: ResumeSession = True,
     wait: AwaitRun = False,
     resume_agent_id: AgentId | None = None,
-    provider: Provider = Provider.claude,
+    provider: Provider | None = None,
     codex: CodexRunConfig | None = None,
 ) -> TeammateStatus:
     """Run `task` on the teammate — the one way to invoke one.
@@ -108,7 +108,9 @@ async def run_teammate(
             False backgrounds the run and returns immediately.
         resume_agent_id: Continue one specific previously-dispatched subagent of this teammate.
             Claude only — raises if given together with `provider=codex`.
-        provider: Which backend runs this turn. `resume` is accepted but inert for `codex`: every
+        provider: Which backend runs this turn; omitted defers to the roster template's
+            own `provider`, so a teammate declared as codex runs on codex without
+            restating it here. `resume` is accepted but inert for `codex`: every
             Codex call is an independent turn, since Codex's `exec` mode takes no thread-id input.
         codex: Codex run settings (cwd, scope, model, timeout); required when `provider` is
             `codex`, ignored otherwise.
@@ -117,7 +119,7 @@ async def run_teammate(
         ValueError: When `name` is not on the roster, or `provider=codex` is combined with
             `resume_agent_id`, a teammate whose toolkits wire subagents, or a missing `codex`.
     """
-    resolve_template(name, context.roster_in_force())
+    template = resolve_template(name, context.roster_in_force())
     key = teammate_key(name)
     live = context.live_run(key)
     if live is not None:
@@ -129,6 +131,9 @@ async def run_teammate(
                 await asyncio.gather(live_task, return_exceptions=True)
         return context.teammate_status(name)
     entry = context.ensure_teammate(name, fresh_session=not resume)
+    # An omitted provider defers to the roster: a template that declares codex would otherwise run
+    # on Claude without a word, which makes the declaration a lie rather than a default.
+    provider = provider if provider is not None else template.provider
     run, request, _prompt = prepare_provider_run(
         context.pool(),
         context.capability_router(),

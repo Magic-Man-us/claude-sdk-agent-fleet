@@ -138,7 +138,7 @@ class RosterFile(FrozenModel):
 
 
 class TeammateStatus(FrozenModel):
-    """What `spawn_teammate`/`check_teammate`/`message_teammate` report: the derived status of the
+    """What `run_teammate`/`check_teammate` report: the derived status of the
     teammate's latest run plus its persisted outcome once finished — or its captured error once
     failed."""
 

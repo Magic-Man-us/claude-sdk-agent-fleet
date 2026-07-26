@@ -9,7 +9,7 @@ from claude_agent_sdk import ClaudeAgentOptions
 from claude_agent_sdk.types import AgentDefinition, ThinkingConfig
 
 from capdisc.base import FrozenWireModel
-from capdisc.catalog import ToolRef
+from capdisc.catalog import BuiltinTool, ToolRef
 from capdisc.hooks import HookConfig, HookEvent, MatcherGroup
 
 from ..models.agent import AgentName, AgentSpec, ModelId
@@ -42,6 +42,25 @@ def tool_grant(spec: AgentSpec) -> list[ToolRef]:
     return [*spec.tools, *(f"mcp__{server}__*" for server in spec.mcp_servers)]
 
 
+def withheld_tools(spec: AgentSpec) -> list[ToolRef]:
+    """The built-in tools this spec does NOT grant, named so the SDK actually withholds them.
+
+    An empty `allowed_tools` means *every* tool to the SDK, and naming a subset does not remove
+    the rest from the model's context — both cases measured identically at ~17.9k tokens, while
+    naming the complement here dropped the same run to ~11.7k. So the grant only becomes real,
+    and only becomes cheap, when the ungranted built-ins are denied explicitly.
+
+    The spec's own `disallowed_tools` come first and are never dropped; MCP grants are untouched,
+    since only built-ins are enumerable.
+    """
+    granted = set(spec.tools)
+    complement = [tool.value for tool in BuiltinTool if tool.value not in granted]
+    return [
+        *spec.disallowed_tools,
+        *(ref for ref in complement if ref not in spec.disallowed_tools),
+    ]
+
+
 def to_options(spec: AgentSpec) -> ClaudeAgentOptions:
     """Build `ClaudeAgentOptions` from a spec — the single spec→SDK mapping.
 
@@ -55,7 +74,7 @@ def to_options(spec: AgentSpec) -> ClaudeAgentOptions:
             map to None so the SDK falls back to its own defaults.
 
     Returns:
-        The options, with `setting_sources` set only when the spec uses skills or MCP servers.
+        The options, loading the user's settings only when the spec actually uses them.
     """
     uses_environment = bool(spec.skills or spec.mcp_servers)
     return ClaudeAgentOptions(
@@ -68,11 +87,13 @@ def to_options(spec: AgentSpec) -> ClaudeAgentOptions:
         if spec.thinking is not None
         else None,
         allowed_tools=tool_grant(spec),
-        disallowed_tools=list(spec.disallowed_tools),
+        disallowed_tools=withheld_tools(spec),
         max_turns=spec.max_turns,
         permission_mode=spec.permission_mode.value if spec.permission_mode is not None else None,
         skills=list(spec.skills) or None,
-        setting_sources=["user", "project"] if uses_environment else None,
+        # `[]` rather than None: None means "the SDK's default", which loads the user's CLAUDE.md,
+        # plugins, and skill metadata — ~12.6k tokens an agent that uses none of it still pays for.
+        setting_sources=["user", "project"] if uses_environment else [],
     )
 
 

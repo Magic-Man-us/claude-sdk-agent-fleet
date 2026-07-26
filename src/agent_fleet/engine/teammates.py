@@ -6,7 +6,7 @@ from pathlib import Path
 
 from pydantic import validate_call
 
-from capdisc.catalog import CatalogEntryId, ToolRef, catalog_id
+from capdisc.catalog import CatalogEntryId, SkillRef, ToolRef, catalog_id
 
 from ..models.agent import (
     AgentName,
@@ -188,14 +188,21 @@ def build_teammate(
     Raises:
         ValueError: When the template names a toolkit the roster does not define.
     """
+    kits = _toolkits_for(template, roster)
     pinned: list[CatalogEntryId] = []
     tools: list[ToolRef] = []
     agents: list[AgentName] = []
-    for kit in _toolkits_for(template, roster):
+    skills: list[SkillRef] = []
+    for kit in kits:
         pinned.extend(catalog_id("skill", ref) for ref in kit.skills)
         pinned.extend(catalog_id("mcp", ref) for ref in kit.mcp_servers)
+        skills.extend(ref for ref in kit.skills if ref not in skills)
         tools.extend(ref for ref in kit.tools if ref not in tools)
         agents.extend(name for name in kit.agents if name not in agents)
+    # Naming skills is an exact answer; naming none leaves relevance selection to do its job —
+    # auto-wiring a researcher with doc-search is the point of the capability router, not waste.
+    # Pin skills only when you want exactly those (which also skips loading the settings tree).
+    declared_skills = skills or None
     request = ProblemRequest(
         task=template.brief,
         name=template.name,
@@ -203,6 +210,7 @@ def build_teammate(
         model=_resolved_model(template, subagent_model),
         pinned=pinned,
         tools=tools,
+        skills=declared_skills,
         system_prompt=template.system_prompt,
     )
     return TeammateBuild(request=request, agents=agents)

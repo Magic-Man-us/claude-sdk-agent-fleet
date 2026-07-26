@@ -23,7 +23,7 @@ class TeammateRunner:
     def spawn(self, run_id: RunId, coro: Coroutine[object, object, object]) -> asyncio.Task[object]:
         """Start `coro` as a background task registered under `run_id`, returning the task.
 
-        A caller that must await this exact run (e.g. `message_teammate(wait=True)`) awaits the
+        A caller that must await this exact run (e.g. `run_teammate(wait=True)`) awaits the
         returned task, never a bare `await coro`: awaiting the coroutine directly would run it
         outside the registry's bookkeeping, so a concurrent `check_teammate` would see nothing
         live — `stale`, not `running` — for the whole duration of the wait.
@@ -51,7 +51,7 @@ class TeammateRunner:
         """The currently-registered live task for `run_id`, or None when it isn't registered —
         already finished (deregistered), or never spawned in this process. Lets a caller that
         discovers a run is already live (rather than having just spawned it itself) still await
-        its completion, e.g. `message_teammate(wait=True)` against a run `spawn_teammate` opened.
+        its completion, e.g. `run_teammate(wait=True)` against a run an earlier call opened.
         """
         return self._tasks.get(run_id)
 

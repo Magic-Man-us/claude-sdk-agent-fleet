@@ -1,11 +1,10 @@
 """The Codex provider adapter: one blocking `codex exec` turn, run off the event loop.
 
-Ported from the agent-delegator skill's `run_codex.py` (junovera, private repo) — its
-scope/isolation/change-detection primitives already live in `engine.scope` and `engine.worktree`,
-so this only adds the Codex-specific transport: argv construction, JSONL parsing, and the
-subprocess call itself. The packet/criterion/worker-result-schema policy layered on top of those
-primitives in the skill is that skill's own contract, not a generic "run a turn" capability, and
-stays there.
+Ported from an internal Codex-invocation reference implementation — its scope, isolation, and
+change-detection primitives already live in `engine.scope` and `engine.worktree`, so this only
+adds the Codex-specific transport: argv construction, JSONL parsing, and the subprocess call
+itself. The packet/criterion/worker-result-schema policy layered on those primitives there is
+that caller's own contract, not a generic "run a turn" capability, and stays with it.
 """
 
 from __future__ import annotations
@@ -31,7 +30,13 @@ from ...models.agent import (
 )
 from ..pool import AgentPool
 from ..scope import violations
-from ..worktree import actual_changes, forbidden_state, require_isolated_worktree, scrub_secret_env
+from ..worktree import (
+    actual_changes,
+    canonical_root,
+    forbidden_state,
+    require_isolated_worktree,
+    scrub_secret_env,
+)
 
 #: Seconds granted to a terminated-but-not-yet-dead process before it is force-killed.
 _TERMINATE_GRACE_SECONDS = 5
@@ -251,6 +256,11 @@ async def run_codex_capture(
     if entry is None:
         raise KeyError(agent_key)
     run = run if run is not None else pool.start_run(agent_key, task)
+    # Canonicalize before anything reads `cwd`: `forbidden_state` globs its patterns from the path
+    # it is handed, so a caller-supplied subdirectory would silently fingerprint the wrong subtree
+    # and report no forbidden change at all — the deletions and symlink swaps git alone cannot see
+    # are exactly what that fingerprinting exists to catch.
+    request = request.model_copy(update={"cwd": canonical_root(request.cwd)})
     require_isolated_worktree(request.cwd)
     stdout = await asyncio.to_thread(_run_codex_sync, request, task)
     parsed = _parse_jsonl(stdout)
