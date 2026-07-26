@@ -81,7 +81,7 @@ make coverage       # test coverage, printed to the terminal
 ```
 
 Details: [docs/OVERVIEW.md](docs/OVERVIEW.md) · [docs/pipeline.md](docs/pipeline.md) ·
-[docs/catalog-boundary.md](docs/catalog-boundary.md)
+[docs/catalog-boundary.md](docs/catalog-boundary.md) · [docs/live-smoke.md](docs/live-smoke.md)
 
 ## Coverage
 
