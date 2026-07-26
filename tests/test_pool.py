@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import logging
 import sqlite3
 import uuid
 from pathlib import Path
@@ -613,3 +614,102 @@ def test_opening_a_pre_outcome_schema_migrates_it(tmp_path: Path) -> None:
     pool.finish_run(run_id, output="works after migration")
     reread = pool.get_run(run_id)
     assert reread is not None and reread.output == "works after migration"
+
+
+_LEGACY_AGENTS = (
+    "CREATE TABLE agents (problem_id TEXT PRIMARY KEY, name TEXT NOT NULL, "
+    "session_id TEXT NOT NULL, spec_json TEXT NOT NULL, cwd TEXT NOT NULL, "
+    "created_at TEXT NOT NULL, updated_at TEXT NOT NULL)"
+)
+_LEGACY_RUNS = (
+    "CREATE TABLE runs (run_id TEXT PRIMARY KEY, problem_id TEXT NOT NULL, "
+    "task TEXT NOT NULL, started_at TEXT NOT NULL, finished_at TEXT)"
+)
+_LEGACY_FINDINGS = (
+    "CREATE TABLE findings (id INTEGER PRIMARY KEY AUTOINCREMENT, problem_id TEXT NOT NULL, "
+    "run_id TEXT NOT NULL, agent_name TEXT, session_id TEXT NOT NULL, "
+    "content TEXT NOT NULL, recorded_at TEXT NOT NULL)"
+)
+
+
+_LEGACY_SESSION_ID = "00000000-0000-4000-8000-000000000001"
+_LEGACY_RUN_ID = "00000000-0000-4000-8000-000000000002"
+_LEGACY_STAMP = "2020-01-01T00:00:00+00:00"
+
+
+def _legacy_pool_db(path: Path, cwd: Path) -> None:
+    """Build a pool database in the pre-`agent_key` shape, when the column was `problem_id`."""
+    conn = sqlite3.connect(path)
+    conn.execute(_LEGACY_AGENTS)
+    conn.execute(_LEGACY_RUNS)
+    conn.execute(_LEGACY_FINDINGS)
+    conn.execute(
+        "INSERT INTO agents "
+        "(problem_id, name, session_id, spec_json, cwd, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            _AGENT_KEY,
+            "auditor",
+            _LEGACY_SESSION_ID,
+            _spec().model_dump_json(),
+            str(cwd),
+            _LEGACY_STAMP,
+            _LEGACY_STAMP,
+        ),
+    )
+    conn.execute(
+        "INSERT INTO runs (run_id, problem_id, task, started_at) VALUES (?, ?, ?, ?)",
+        (_LEGACY_RUN_ID, _AGENT_KEY, _TASK, _LEGACY_STAMP),
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_opening_a_legacy_problem_id_database_migrates_and_preserves_entries(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "legacy.db"
+    _legacy_pool_db(db, tmp_path)
+
+    pool = AgentPool(db)
+
+    entry = pool.get_by_key(_AGENT_KEY)
+    assert entry is not None
+    assert entry.agent_key == _AGENT_KEY
+    assert entry.name == "auditor"
+    assert [item.agent_key for item in pool.list()] == [_AGENT_KEY]
+    runs = pool.list_runs(_AGENT_KEY)
+    assert [run.run_id for run in runs] == [_LEGACY_RUN_ID]
+    assert pool.list_findings(_AGENT_KEY) == []
+
+
+def test_list_skips_an_entry_whose_stored_spec_predates_the_current_model(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    db = tmp_path / "pool.db"
+    readable = AgentPool(db).save(_AGENT_KEY, _spec())
+    # `domain` is a field the current AgentSpec no longer accepts, and it forbids extras.
+    stale_spec_json = _spec().model_dump_json().replace('{"name"', '{"domain":null,"name"', 1)
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "INSERT INTO agents "
+        "(agent_key, name, session_id, spec_json, cwd, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            "LEGACY-1",
+            "legacy",
+            _LEGACY_SESSION_ID,
+            stale_spec_json,
+            str(tmp_path),
+            _LEGACY_STAMP,
+            _LEGACY_STAMP,
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    with caplog.at_level(logging.WARNING):
+        entries = AgentPool(db).list()
+
+    assert [entry.agent_key for entry in entries] == [readable.agent_key]
+    assert "LEGACY-1" in caplog.text

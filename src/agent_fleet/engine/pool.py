@@ -2,14 +2,19 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import logging
 import sqlite3
 import threading
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from claude_agent_sdk import ClaudeAgentOptions
-from pydantic import JsonValue, TypeAdapter
+from pydantic import JsonValue, TypeAdapter, ValidationError
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 from capdisc.catalog import DEFAULT_RECALL_LIMIT, RecallLimit
 
@@ -83,6 +88,12 @@ _RUN_COLUMNS = (
     "run_id, agent_key, task, started_at, finished_at, "
     "output, structured_output_json, total_cost_usd, error"
 )
+logger = logging.getLogger(__name__)
+
+#: Tables keyed by the agent key, and the column's pre-rename name, for the legacy migration.
+_KEYED_TABLES = ("agents", "runs", "findings")
+_KEY_COLUMN = "agent_key"
+_LEGACY_KEY_COLUMN = "problem_id"
 _RUNS_OUTCOME_COLUMNS = (
     ("output", "TEXT"),
     ("structured_output_json", "TEXT"),
@@ -105,6 +116,26 @@ def _new_session_id() -> SessionId:
 def _new_run_id() -> RunId:
     """Mint a fresh run UUID — the id one invocation of a pooled agent is tracked under."""
     return str(uuid.uuid4())
+
+
+def _readable_entries(rows: Iterable[sqlite3.Row]) -> PoolEntryList:
+    """Rebuild every entry a bulk listing can decode, skipping (and logging) the ones it cannot.
+
+    A spec stored by an older version can carry fields the current `AgentSpec` no longer accepts,
+    and `AgentSpec` forbids extras — so one stale row would otherwise raise out of `list`/`find`
+    and take the whole listing (and every `roster()` built on it) down with it. A caller asking
+    for one specific key still gets the raw error rather than a silent miss.
+    """
+    entries: PoolEntryList = []
+    for row in rows:
+        try:
+            entries.append(_row_to_entry(row))
+        except ValidationError:
+            logger.warning(
+                "skipping pool entry %s: its stored spec predates the current AgentSpec",
+                row["agent_key"],
+            )
+    return entries
 
 
 def _entry_text(entry: PoolEntry) -> str:
@@ -141,12 +172,29 @@ class AgentPool:
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA busy_timeout=5000")
         self._conn.row_factory = sqlite3.Row
+        self._migrate_legacy_key_column()
         self._conn.execute(_CREATE_TABLE)
         self._conn.execute(_CREATE_RUNS_TABLE)
         self._conn.execute(_CREATE_AGENT_RUNS_TABLE)
         self._conn.execute(_CREATE_FINDINGS_TABLE)
         self._ensure_runs_columns()
         self._conn.commit()
+
+    def _migrate_legacy_key_column(self) -> None:
+        """Rename the pre-`agent_key` `problem_id` column on a database created before the rename.
+
+        `CREATE TABLE IF NOT EXISTS` leaves an existing table alone, so a pool file written by an
+        older version keeps `problem_id` and every keyed read (`get_by_key`, `list`, `list_runs`)
+        fails with a raw `sqlite3.OperationalError` naming a column the caller never chose.
+        Renaming in place keeps the stored entries and their history addressable. A `PRAGMA` on a
+        table that does not exist yields no rows, so this is a no-op for a fresh database.
+        """
+        for table in _KEYED_TABLES:
+            columns = {row["name"] for row in self._conn.execute(f"PRAGMA table_info({table})")}
+            if _LEGACY_KEY_COLUMN in columns and _KEY_COLUMN not in columns:
+                self._conn.execute(
+                    f"ALTER TABLE {table} RENAME COLUMN {_LEGACY_KEY_COLUMN} TO {_KEY_COLUMN}"
+                )
 
     def _ensure_runs_columns(self) -> None:
         """Add the run-outcome columns to a database created before they existed (idempotent)."""
@@ -280,7 +328,7 @@ class AgentPool:
                 "SELECT agent_key, name, session_id, spec_json, cwd, created_at, updated_at "
                 "FROM agents ORDER BY updated_at DESC"
             ).fetchall()
-        return [_row_to_entry(row) for row in rows]
+        return _readable_entries(rows)
 
     def _start_run_locked(self, agent_key: AgentKey, task: TaskBrief) -> RunRecord:
         """Open a run, minting a fresh run id, assuming the caller already holds `_write_lock`."""
