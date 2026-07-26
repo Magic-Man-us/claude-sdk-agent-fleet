@@ -124,7 +124,8 @@ class AgentFleetSettings(DiscoverySettings):
     )
     codex_allowed_roots: list[Path] = Field(
         default_factory=list,
-        description="Roots Codex cwd values may live under; empty means the fleet process cwd.",
+        description="Absolute existing directories Codex cwd values may live under. Empty uses "
+        "the fleet process cwd unless it is the filesystem root or user home.",
         validation_alias="AGENT_FLEET_CODEX_ALLOWED_ROOTS",
     )
     codex_max_timeout_seconds: int = Field(

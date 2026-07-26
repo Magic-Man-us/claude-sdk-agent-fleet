@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import shutil
 import subprocess
@@ -169,8 +170,10 @@ def test_read_only_requires_allowlisted_canonical_git_root(tmp_path: Path) -> No
     subdirectory.mkdir()
     with pytest.raises(CodexRunError, match="canonical"):
         codex_tool._validate_request(_args(subdirectory), _policy(tmp_path))
+    other = tmp_path / "other"
+    other.mkdir()
     with pytest.raises(CodexRunError, match="outside"):
-        codex_tool._validate_request(_args(root), CodexPolicy(allowed_roots=(tmp_path / "other",)))
+        codex_tool._validate_request(_args(root), CodexPolicy(allowed_roots=(other,)))
 
 
 def test_policy_rejects_filesystem_and_home_roots(tmp_path: Path) -> None:
@@ -179,6 +182,21 @@ def test_policy_rejects_filesystem_and_home_roots(tmp_path: Path) -> None:
         codex_tool._validate_request(_args(root), CodexPolicy(allowed_roots=(Path("/"),)))
     with pytest.raises(CodexRunError, match="filesystem or home"):
         codex_tool._validate_request(_args(root), CodexPolicy(allowed_roots=(Path.home(),)))
+
+
+def test_policy_requires_absolute_existing_directory_roots(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    with pytest.raises(CodexRunError, match="absolute"):
+        codex_tool._validate_request(_args(root), CodexPolicy(allowed_roots=(Path("repos"),)))
+    with pytest.raises(CodexRunError, match="existing directory"):
+        codex_tool._validate_request(
+            _args(root),
+            CodexPolicy(allowed_roots=(tmp_path / "missing",)),
+        )
+    file_root = tmp_path / "not-a-directory"
+    file_root.write_text("fixture\n", encoding="utf-8")
+    with pytest.raises(CodexRunError, match="existing directory"):
+        codex_tool._validate_request(_args(root), CodexPolicy(allowed_roots=(file_root,)))
 
 
 def test_workspace_write_requires_operator_enablement(tmp_path: Path) -> None:
@@ -223,6 +241,20 @@ def test_timeout_cannot_exceed_operator_ceiling(tmp_path: Path) -> None:
         )
 
 
+def test_resume_prompt_has_portable_byte_limit(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    thread_id = uuid4()
+    with pytest.raises(CodexRunError, match="portability limit"):
+        codex_tool._validate_request(
+            _args(
+                root,
+                prompt="é" * (codex_tool.MAX_RESUME_PROMPT_BYTES // 2 + 1),
+                resume_thread_id=thread_id,
+            ),
+            _policy(tmp_path),
+        )
+
+
 def test_fresh_command_uses_stdin_and_fixed_automation_policy(tmp_path: Path) -> None:
     root = _repo(tmp_path)
     args = _args(root, effort="high", model="gpt-5.6-terra")
@@ -235,6 +267,13 @@ def test_fresh_command_uses_stdin_and_fixed_automation_policy(tmp_path: Path) ->
     assert "--strict-config" in argv
     assert "--ignore-user-config" in argv
     assert "--skip-git-repo-check" not in argv
+    configured = {argv[index + 1] for index, value in enumerate(argv) if value == "--config"}
+    assert set(codex_tool.HARDENED_CONFIG_OVERRIDES) <= configured
+    assert "sandbox_workspace_write.network_access=false" in configured
+    assert "sandbox_workspace_write.writable_roots=[]" in configured
+    assert "features.hooks=false" in configured
+    assert 'shell_environment_policy.inherit="core"' in configured
+    assert f'projects.{json.dumps(str(root))}.trust_level="untrusted"' in configured
     assert argv[-1] == "-"
     assert payload == _PROMPT.encode()
 
@@ -393,6 +432,67 @@ def test_execute_terminates_child_when_caller_is_cancelled(
     assert terminated is True
 
 
+def test_execute_timeout_includes_stalled_stdin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    terminated = False
+
+    class StalledWriter:
+        closed = False
+
+        def write(self, payload: bytes) -> None:
+            assert payload == b"prompt"
+
+        async def drain(self) -> None:
+            await asyncio.Future()
+
+        def close(self) -> None:
+            self.closed = True
+
+        async def wait_closed(self) -> None:
+            return
+
+    class Process:
+        returncode: int | None = None
+        stdin = StalledWriter()
+        stdout = object()
+        stderr = object()
+
+        async def wait(self) -> int:
+            return 0
+
+    process = Process()
+
+    async def fake_subprocess(*args: str, **kwargs: object) -> Process:
+        del args, kwargs
+        return process
+
+    async def fake_read(*args: object, **kwargs: object) -> bytes:
+        del args, kwargs
+        return b""
+
+    async def fake_terminate(proc: object) -> None:
+        nonlocal terminated
+        assert proc is process
+        terminated = True
+
+    monkeypatch.setattr(codex_tool.asyncio, "create_subprocess_exec", fake_subprocess)
+    monkeypatch.setattr(codex_tool, "_read_limited", fake_read)
+    monkeypatch.setattr(codex_tool, "_terminate", fake_terminate)
+
+    with pytest.raises(CodexRunError, match="exceeded"):
+        asyncio.run(
+            codex_tool._execute(
+                ["/opt/codex/bin/codex"],
+                root=tmp_path,
+                stdin_payload=b"prompt",
+                timeout_seconds=0.01,
+            )
+        )
+    assert terminated is True
+    assert process.stdin.closed is True
+
+
 def test_codex_server_returns_structured_content(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -458,6 +558,43 @@ def test_with_codex_tool_mounts_server_and_is_idempotent(tmp_path: Path) -> None
     assert CODEX_TOOL in once.allowed_tools
     assert CODEX_TOOL not in base.allowed_tools
     assert twice.allowed_tools.count(CODEX_TOOL) == 1
+
+
+def test_with_codex_tool_preserves_json_file_mcp_servers(tmp_path: Path) -> None:
+    config = tmp_path / "mcp.json"
+    config.write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "external": {
+                        "type": "http",
+                        "url": "https://mcp.example.test",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    base = dataclasses.replace(to_options(_spec()), mcp_servers=config)
+
+    mounted = with_codex_tool(base, _policy(tmp_path))
+
+    assert set(mounted.mcp_servers) == {"external", CODEX_SERVER}
+
+
+def test_with_codex_tool_rejects_reserved_server_collision(tmp_path: Path) -> None:
+    base = dataclasses.replace(
+        to_options(_spec()),
+        mcp_servers={
+            CODEX_SERVER: {
+                "type": "http",
+                "url": "https://untrusted.example.test",
+            }
+        },
+    )
+
+    with pytest.raises(CodexRunError, match="reserved"):
+        with_codex_tool(base, _policy(tmp_path))
 
 
 def test_with_codex_tool_none_is_explicitly_disabled() -> None:
