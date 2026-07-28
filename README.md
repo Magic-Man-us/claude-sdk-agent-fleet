@@ -13,6 +13,12 @@ runs and resumes it. The generation path is deterministic — no LLM and no netw
 same request and corpus produce a byte-identical agent. Running the agent is the part that talks to
 the SDK.
 
+The runtime remains Claude Agent SDK-specific: Claude is the supervisor and conversation owner.
+Live and generated Claude agents also receive one guarded in-process MCP tool,
+`mcp__codex__codex_run`, for delegating bounded implementation, debugging, and independent-review
+work to the local Codex CLI. Codex is a worker capability, not a second fleet runtime or an
+authoritative workflow store.
+
 ## Repository layout
 
 Python only. One PyPI package (`claude-sdk-agent-fleet`), three subpackages layered so each depends on the ones
@@ -69,6 +75,56 @@ Consumption is push-style, not poll-in-conversation: set a harness Monitor on `c
 rather than re-checking it from inside the conversation. `AGENT_FLEET_NOTIFY_COMMAND` configures a
 Stop-hook shell command that runs when a teammate's run finishes, receiving Claude Code's
 hook-input JSON on stdin — the payload identifies the finished session.
+
+## Guarded Codex worker
+
+Install and authenticate the Codex CLI once:
+
+```bash
+codex --version
+codex login
+```
+
+Every Claude fleet run—including named subagents and emitted agent programs—gets `codex_run` by
+default. The tool accepts a self-contained prompt, an absolute canonical Git worktree root, a
+`read-only` or `workspace-write` sandbox, a supported Codex model, reasoning effort,
+timeout, and an optional prior thread UUID. It returns the final message, thread UUID, commands
+observed in Codex JSONL, token usage, duration, and bounded failure detail.
+
+Fresh prompts travel over stdin. Codex's documented non-interactive resume form requires a
+positional prompt, so resumed prompts are capped at 64,000 UTF-8 bytes for macOS process-argument
+portability; avoid putting secrets in a resume prompt because local process listings can expose
+command arguments.
+
+The secure defaults are intentional:
+
+- `cwd` must stay under an absolute, existing operator-allowlisted directory. An empty root list
+  uses the fleet process working directory, except when that directory is the filesystem root or
+  user home; set an explicit narrower allowlist in those cases.
+- `read-only` is the default and Codex receives `--ask-for-approval never`.
+- `workspace-write` is disabled until explicitly enabled, and then accepts only a clean, detached
+  linked Git worktree.
+- the wrapper never uses `--skip-git-repo-check`, never invokes a shell, ignores user Codex config
+  for the automated run, explicitly treats the worktree as untrusted so project `.codex/` config,
+  hooks, rules, and MCP servers do not load, and pins adjacent controls: no command network, web
+  search, extra writable or temporary roots, hooks, apps, remote plugins, nested agents, login
+  shells, or broad command-environment inheritance.
+- runtime/output are bounded, the whole child process group is terminated on macOS and Linux, and
+  common API/service credentials are removed from the Codex process environment.
+- the pool MCP does not expose a direct Codex endpoint; the running Claude agent is the caller.
+
+Configure the boundary with environment variables:
+
+```bash
+AGENT_FLEET_CODEX_ENABLED=true
+AGENT_FLEET_CODEX_ALLOWED_ROOTS='["/absolute/path/to/repos","/absolute/path/to/worktrees"]'
+AGENT_FLEET_CODEX_ALLOW_WORKSPACE_WRITE=false
+AGENT_FLEET_CODEX_MAX_TIMEOUT_SECONDS=3600
+```
+
+For implementation workers, set `AGENT_FLEET_CODEX_ALLOW_WORKSPACE_WRITE=true`, create a detached
+linked worktree under an allowed root, and pass that exact worktree root to `codex_run`. Disabling
+`AGENT_FLEET_CODEX_ENABLED` removes the server and tool grant entirely.
 
 ## Develop
 

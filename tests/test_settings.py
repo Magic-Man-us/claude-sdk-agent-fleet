@@ -217,6 +217,10 @@ def test_path_defaults_point_at_standard_locations(tmp_path: Path) -> None:
     assert s.report_dir == Path.home() / ".claude" / "capdisc"
     assert s.agent_dir is None  # output targets unset until configured
     assert s.skill_dir is None  # output targets unset until configured
+    assert s.codex_enabled is True
+    assert s.codex_allow_workspace_write is False
+    assert s.codex_allowed_roots == []
+    assert s.codex_max_timeout_seconds == 3600
 
 
 def test_env_overrides_a_path(tmp_path: Path) -> None:
@@ -227,6 +231,29 @@ def test_env_overrides_a_path(tmp_path: Path) -> None:
     )
     assert s.mcp_cache == tmp_path / "cache.json"
     assert s.agent_dir == tmp_path / "agents"
+
+
+def test_codex_settings_load_from_environment(tmp_path: Path) -> None:
+    root = tmp_path / "repos"
+    settings = _settings_with_json(
+        tmp_path / "missing.json",
+        AGENT_FLEET_CODEX_ENABLED="false",
+        AGENT_FLEET_CODEX_ALLOW_WORKSPACE_WRITE="true",
+        AGENT_FLEET_CODEX_ALLOWED_ROOTS=f'["{root}"]',
+        AGENT_FLEET_CODEX_MAX_TIMEOUT_SECONDS="1200",
+    )
+
+    assert settings.codex_enabled is False
+    assert settings.codex_allow_workspace_write is True
+    assert settings.codex_allowed_roots == [root]
+    assert settings.codex_max_timeout_seconds == 1200
+
+
+def test_codex_timeout_setting_is_bounded() -> None:
+    with pytest.raises(ValidationError):
+        AgentFleetSettings.model_validate({"AGENT_FLEET_CODEX_MAX_TIMEOUT_SECONDS": 29})
+    with pytest.raises(ValidationError):
+        AgentFleetSettings.model_validate({"AGENT_FLEET_CODEX_MAX_TIMEOUT_SECONDS": 7201})
 
 
 # ---------------------------------------------------------------------------

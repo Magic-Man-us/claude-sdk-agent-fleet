@@ -6,6 +6,7 @@ from claude_agent_sdk import Message, query
 from pydantic import validate_call
 
 from ..models.agent import AgentSpec, TaskBrief
+from .codex_tool import current_codex_policy, with_codex_tool
 from .render import to_options
 
 
@@ -22,5 +23,6 @@ async def run_agent(spec: AgentSpec, task: TaskBrief) -> AsyncIterator[Message]:
     Yields:
         Each `Message` from the SDK as the agent runs.
     """
-    async for message in query(prompt=task, options=to_options(spec)):
+    options = with_codex_tool(to_options(spec), current_codex_policy())
+    async for message in query(prompt=task, options=options):
         yield message

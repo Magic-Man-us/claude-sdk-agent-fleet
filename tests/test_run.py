@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import asyncio
+from collections.abc import AsyncIterator
+from typing import cast
+
 import pytest
-from claude_agent_sdk import ClaudeAgentOptions
+from claude_agent_sdk import ClaudeAgentOptions, Message
 from pydantic import ValidationError
 
 from agent_fleet import AgentSpec
+from agent_fleet.engine.codex_tool import CODEX_SERVER, CODEX_TOOL
 from agent_fleet.engine.render import to_options
 from agent_fleet.engine.run import run_agent
 from agent_fleet.models.agent import (
@@ -32,6 +37,7 @@ def test_to_options_builds_real_options() -> None:
     assert options.model == "haiku"
     assert options.effort == "low"
     assert options.allowed_tools == ["Read", "Grep", "mcp__plugin-playwright-playwright__*"]
+    assert CODEX_SERVER not in options.mcp_servers
     assert options.skills == ["appsec-audit"]
     assert options.setting_sources == ["user", "project"]
 
@@ -104,3 +110,30 @@ def test_run_agent_rejects_too_short_task() -> None:
     )
     with pytest.raises(ValidationError):
         run_agent(spec, "hi")
+
+
+def test_run_agent_mounts_guarded_codex_tool(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: list[ClaudeAgentOptions] = []
+
+    async def fake_query(**kwargs: object) -> AsyncIterator[Message]:
+        options = kwargs["options"]
+        assert isinstance(options, ClaudeAgentOptions)
+        captured.append(options)
+        if False:
+            yield cast(Message, object())
+
+    monkeypatch.setattr("agent_fleet.engine.run.query", fake_query)
+    spec = AgentSpec(
+        name="supervisor",
+        description="Coordinates implementation workers.",
+        system_prompt="You coordinate implementation workers and report their verified results.",
+    )
+
+    async def consume() -> None:
+        async for _ in run_agent(spec, "Delegate a read-only repository review to Codex."):
+            pass
+
+    asyncio.run(consume())
+    assert len(captured) == 1
+    assert CODEX_TOOL in captured[0].allowed_tools
+    assert CODEX_SERVER in captured[0].mcp_servers

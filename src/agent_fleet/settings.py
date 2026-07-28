@@ -111,6 +111,30 @@ class AgentFleetSettings(DiscoverySettings):
         "to the template.",
         validation_alias="CLAUDE_CODE_SUBAGENT_MODEL",
     )
+    codex_enabled: bool = Field(
+        default=True,
+        description="Mount the guarded Codex MCP worker on live and generated Claude agents.",
+        validation_alias="AGENT_FLEET_CODEX_ENABLED",
+    )
+    codex_allow_workspace_write: bool = Field(
+        default=False,
+        description="Allow Codex workspace-write calls, still restricted to clean detached linked "
+        "worktrees under codex_allowed_roots.",
+        validation_alias="AGENT_FLEET_CODEX_ALLOW_WORKSPACE_WRITE",
+    )
+    codex_allowed_roots: list[Path] = Field(
+        default_factory=list,
+        description="Absolute existing directories Codex cwd values may live under. Empty uses "
+        "the fleet process cwd unless it is the filesystem root or user home.",
+        validation_alias="AGENT_FLEET_CODEX_ALLOWED_ROOTS",
+    )
+    codex_max_timeout_seconds: int = Field(
+        default=3_600,
+        ge=30,
+        le=7_200,
+        description="Operator ceiling for one Codex worker call.",
+        validation_alias="AGENT_FLEET_CODEX_MAX_TIMEOUT_SECONDS",
+    )
 
     def discovery_scope(
         self,
