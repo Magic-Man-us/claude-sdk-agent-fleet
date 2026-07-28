@@ -7,7 +7,9 @@ from pathlib import Path
 import pytest
 from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock
 
+from agent_fleet import AgentPool
 from agent_fleet.engine.orchestrate import (
+    ORCHESTRATED_KEY_PREFIX,
     OrchestrateOutcome,
     Orchestrator,
     build_orchestrator_server,
@@ -125,22 +127,43 @@ def test_spawn_no_prior_propose_raises(tmp_path: Path) -> None:
         asyncio.run(orch.spawn(_VALID_TASK))
 
 
-def test_spawn_collects_assistant_text(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    async def _fake_run_agent(spec: AgentSpec, task: str) -> AsyncIterator[AssistantMessage]:
+def test_spawn_records_the_run_it_performs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An orchestrated run goes through the pool, so it leaves a record like any other run."""
+
+    async def _fake_query(**kwargs: object) -> AsyncIterator[AssistantMessage]:
         yield AssistantMessage(content=[TextBlock(text="hello")], model="test-model")
         yield AssistantMessage(content=[TextBlock(text="world")], model="test-model")
 
-    monkeypatch.setattr("agent_fleet.engine.orchestrate.run_agent", _fake_run_agent)
+    monkeypatch.setattr("agent_fleet.engine.dispatch.query", _fake_query)
 
-    orch = _make_orch(tmp_path)
+    pool = AgentPool(tmp_path / "pool.db")
+    orch = Orchestrator(_router(tmp_path, []), pool)
     orch.propose(
         name="test-agent",
         description="Test agent for spawn text collection.",
         system_prompt=_VALID_PROMPT,
     )
+
     result = asyncio.run(orch.spawn(_VALID_TASK))
+
     assert "hello" in result
-    assert "world" in result
+    key = f"{ORCHESTRATED_KEY_PREFIX}test-agent"
+    assert pool.get_by_key(key) is not None
+    runs = pool.list_runs(key)
+    assert len(runs) == 1
+    assert runs[0].output == "hello\nworld"
+
+
+def test_spawn_refuses_without_a_pool_to_record_it(tmp_path: Path) -> None:
+    """Running ungoverned is refused loudly rather than allowed silently."""
+    orch = Orchestrator(_router(tmp_path, []))
+    orch.propose(
+        name="test-agent",
+        description="Test agent for spawn text collection.",
+        system_prompt=_VALID_PROMPT,
+    )
+    with pytest.raises(RuntimeError, match="pool"):
+        asyncio.run(orch.spawn(_VALID_TASK))
 
 
 def test_orchestrator_options_has_orchestrator_server(tmp_path: Path) -> None:

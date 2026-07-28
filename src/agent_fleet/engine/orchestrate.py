@@ -40,7 +40,8 @@ from ..router.capability import (
     SkillCard,
     ToolCard,
 )
-from .run import run_agent
+from .dispatch import run_with_capture
+from .pool import AgentPool
 
 ORCHESTRATOR_PROMPT: PromptBody = (
     "You assemble a specialized agent for a task, then run it.\n\n"
@@ -129,13 +130,18 @@ class _SpawnArgs(InputModel):
 # ---------------------------------------------------------------------------
 
 
+#: Namespace for specs an orchestrator proposed and ran, keeping them out of `teammate.`.
+ORCHESTRATED_KEY_PREFIX = "orchestrated."
+
+
 class Orchestrator:
     """Capability orchestrator: reviews the ranked slates, proposes an AgentSpec, and spawns it.
     The review/propose methods are synchronous and testable without the SDK or any LLM; only
     spawn calls into the SDK."""
 
-    def __init__(self, router: CapabilityRouter) -> None:
+    def __init__(self, router: CapabilityRouter, pool: AgentPool | None = None) -> None:
         self._router = router
+        self._pool = pool
         self._spec: AgentSpec | None = None
 
     @property
@@ -187,14 +193,27 @@ class Orchestrator:
 
     @validate_call
     async def spawn(self, task: TaskBrief) -> str:
-        """Run the proposed agent on task and return concatenated assistant text. Raises
-        RuntimeError when propose has not been called yet — callers should propose first."""
+        """Run the proposed agent on `task` through the pool and return its assistant text.
+
+        Recorded like any other run rather than streamed straight from the SDK: an orchestrated
+        agent is still an agent, and a run with no `RunRecord` is one nothing can later report on,
+        resume, or bill. The proposal is stored under its own `orchestrated.` key, which keeps it
+        out of the reserved teammate namespace.
+
+        Raises:
+            RuntimeError: When no spec has been proposed, or no pool was supplied to record the
+                run — running ungoverned is refused rather than silently allowed.
+        """
         if self._spec is None:
             raise RuntimeError("no agent spec has been proposed yet — call propose first")
-        parts: list[str] = []
-        async for msg in run_agent(self._spec, task):
-            parts.extend(_extract_text(msg))
-        return "\n".join(parts)
+        if self._pool is None:
+            raise RuntimeError(
+                "orchestrated runs need a pool to record them; construct Orchestrator(router, pool)"
+            )
+        entry = self._pool.save(f"{ORCHESTRATED_KEY_PREFIX}{self._spec.name}", self._spec)
+        run, options = self._pool.begin_run(entry, task)
+        outcome = await run_with_capture(self._pool, entry.agent_key, task, options, run=run)
+        return outcome.output
 
 
 # ---------------------------------------------------------------------------
@@ -390,10 +409,16 @@ def orchestrator_options(orch: Orchestrator) -> ClaudeAgentOptions:
 
 
 @validate_call(config={"arbitrary_types_allowed": True})
-async def collect_orchestration(task: TaskBrief, router: CapabilityRouter) -> OrchestrateOutcome:
+async def collect_orchestration(
+    task: TaskBrief, router: CapabilityRouter, pool: AgentPool | None = None
+) -> OrchestrateOutcome:
     """Run the orchestrator to completion and return its final text + proposed spec.
-    Requires the `claude` CLI at runtime (the SDK spawns it), same as run_agent."""
-    orch = Orchestrator(router)
+
+    Requires the `claude` CLI at runtime (the SDK spawns it). Without a `pool` the orchestrator can
+    still search and propose; its `spawn` tool refuses, since an unrecorded run is one nothing can
+    report on afterwards.
+    """
+    orch = Orchestrator(router, pool)
     parts: list[str] = []
     async for msg in query(prompt=task, options=orchestrator_options(orch)):
         parts.extend(_extract_text(msg))
