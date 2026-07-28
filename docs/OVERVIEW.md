@@ -12,9 +12,32 @@ no clock/random). The **run** path is where the SDK, the network, and the LLM en
 | Generator pipeline | `assemble()` → `generate()` in [src/agent_fleet/engine/pipeline.py](../src/agent_fleet/engine/pipeline.py) | problem → `AgentSpec` → runnable SDK program |
 | Capability router | `CapabilityRouter` in [src/agent_fleet/router/capability.py](../src/agent_fleet/router/capability.py), served over MCP by [router/mcp_server.py](../src/agent_fleet/router/mcp_server.py) | `find_skills`/`find_tools`/`find_mcp`/`load_skill` as deferred tools |
 | Agent pool | `AgentPool` in [src/agent_fleet/engine/pool.py](../src/agent_fleet/engine/pool.py), served over MCP by [agent_fleet_mcp/pool_server.py](../src/agent_fleet_mcp/pool_server.py) | persist, resume, and fan out named agent sessions |
+| Teammates | `run_teammate` in [agent_fleet_mcp/teammate_server.py](../src/agent_fleet_mcp/teammate_server.py), over a roster in [engine/teammates.py](../src/agent_fleet/engine/teammates.py) | the one way to run a named specialist, resumed against its standing session |
 
 The pipeline builds an agent; the router is how an agent finds capability at its own runtime; the
-pool is how a run survives past one conversation.
+pool is how a run survives past one conversation; teammates are the surface you actually call.
+
+### Running a teammate
+
+`run_teammate(name, task, resume=True, wait=False, provider=None)` is the single invocation verb —
+standing one up and sending it another turn are the same operation, differing only in whether the
+existing session continues. `roster()` lists who exists, `check_teammate()` reports status and the
+last outcome, `dismiss_teammate()` discards a session whose context has gone stale.
+
+The roster is a TOML file you own, resolved most-specific-first: `AGENT_FLEET_ROSTER`, then
+`./.agent-fleet/roster.toml`, then `~/.config/agent-fleet/roster.toml`, then the minimal roster
+shipped here. A toolkit adds capability — skills, MCP servers, tools, and other teammates to
+dispatch to — on top of what the router selects and the default tool grant.
+
+Runs go through `prepare_provider_run`/`run_provider_capture` in
+[engine/dispatch.py](../src/agent_fleet/engine/dispatch.py), which dispatch to Claude or to the
+Codex adapter in [engine/providers/codex.py](../src/agent_fleet/engine/providers/codex.py). Every
+Codex entry point — the provider and the tool mounted by
+[engine/codex_tool.py](../src/agent_fleet/engine/codex_tool.py) — passes the same operator gate,
+so `AGENT_FLEET_CODEX_*` bounds both. A run may be held to a `RunScope`
+([engine/scope.py](../src/agent_fleet/engine/scope.py)), checked afterwards against what the
+worktree actually shows ([engine/worktree.py](../src/agent_fleet/engine/worktree.py)) rather than
+what the run reported.
 
 ## Packages
 

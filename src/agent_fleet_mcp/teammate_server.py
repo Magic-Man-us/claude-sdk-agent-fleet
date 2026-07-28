@@ -113,7 +113,10 @@ async def run_teammate(
             restating it here. `resume` is accepted but inert for `codex`: every
             Codex call is an independent turn, since Codex's `exec` mode takes no thread-id input.
         codex: Codex run settings (cwd, scope, model, timeout); required when `provider` is
-            `codex`, ignored otherwise.
+            `codex`, ignored otherwise. `cwd` must be a clean detached linked worktree inside
+            `AGENT_FLEET_CODEX_ALLOWED_ROOTS`, and `timeout_s` is clamped to the operator's
+            ceiling — the same boundary the mounted Codex tool is held to, so this is not a way
+            around it.
 
     Raises:
         ValueError: When `name` is not on the roster, or `provider=codex` is combined with
