@@ -138,8 +138,14 @@ def _init_repo(root: Path) -> None:
 
 
 @pytest.fixture
-def worktree(tmp_path: Path) -> Path:
-    """A clean, detached-HEAD linked worktree — the shape `run_codex_capture` requires."""
+def worktree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A clean, detached-HEAD linked worktree — the shape `run_codex_capture` requires.
+
+    The sandbox is granted through the operator setting rather than bypassed: `run_codex_capture`
+    enforces the same Codex boundary as the mounted tool, so a test worktree outside the allowed
+    roots is correctly refused. Granting it here is what a real operator does.
+    """
+    monkeypatch.setenv("AGENT_FLEET_CODEX_ALLOWED_ROOTS", f'["{tmp_path}"]')
     repo = tmp_path / "repo"
     _init_repo(repo)
     linked = tmp_path / "linked"
@@ -196,7 +202,11 @@ def test_run_codex_capture_raises_on_missing_agent_key(worktree: Path, tmp_path:
         asyncio.run(run_codex_capture(pool, "nobody-here", _TASK, _request(worktree)))
 
 
-def test_run_codex_capture_rejects_a_non_isolated_worktree(tmp_path: Path) -> None:
+def test_run_codex_capture_rejects_a_non_isolated_worktree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # granted by policy, so the rejection under test is the isolation check and not the boundary
+    monkeypatch.setenv("AGENT_FLEET_CODEX_ALLOWED_ROOTS", f'["{tmp_path}"]')
     dirty = tmp_path / "repo"
     _init_repo(dirty)  # the main worktree, not a linked one
     _run_git(dirty, "checkout", "-q", "--detach", "HEAD")

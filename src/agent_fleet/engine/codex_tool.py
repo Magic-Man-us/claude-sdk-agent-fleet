@@ -344,6 +344,31 @@ def _validate_allowed_roots(roots: tuple[Path, ...]) -> tuple[Path, ...]:
     return tuple(resolved)
 
 
+def enforce_codex_policy(cwd: Path, timeout_seconds: int) -> tuple[Path, int]:
+    """Apply the operator's Codex boundary to any Codex invocation, whatever layer asks.
+
+    The policy exists to bound Codex per fleet process, so it cannot live behind only one of the
+    two ways Codex is reachable: a run that enters through `run_teammate(provider=codex)` must be
+    held to the same `AGENT_FLEET_CODEX_*` settings as one that enters through the mounted tool.
+    Both call this.
+
+    Args:
+        cwd: The requested working directory; validated and canonicalized to its worktree root.
+        timeout_seconds: The requested timeout, clamped down to the operator's ceiling.
+
+    Returns:
+        The canonical worktree root and the effective timeout.
+
+    Raises:
+        CodexRunError: When Codex is disabled, or `cwd` is outside the allowed roots or is not a
+            canonical git worktree root.
+    """
+    policy = current_codex_policy()
+    if policy is None:
+        raise CodexRunError("Codex is disabled by operator policy (AGENT_FLEET_CODEX_ENABLED)")
+    return _canonical_git_root(cwd, policy), min(timeout_seconds, policy.max_timeout_seconds)
+
+
 def _canonical_git_root(requested: Path, policy: CodexPolicy) -> Path:
     if not requested.is_absolute():
         raise CodexRunError("cwd must be an absolute path")

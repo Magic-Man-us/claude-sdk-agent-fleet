@@ -28,11 +28,11 @@ from ...models.agent import (
     RunRecord,
     TaskBrief,
 )
+from ..codex_tool import enforce_codex_policy
 from ..pool import AgentPool
 from ..scope import violations
 from ..worktree import (
     actual_changes,
-    canonical_root,
     forbidden_state,
     require_isolated_worktree,
     scrub_secret_env,
@@ -256,11 +256,14 @@ async def run_codex_capture(
     if entry is None:
         raise KeyError(agent_key)
     run = run if run is not None else pool.start_run(agent_key, task)
-    # Canonicalize before anything reads `cwd`: `forbidden_state` globs its patterns from the path
-    # it is handed, so a caller-supplied subdirectory would silently fingerprint the wrong subtree
-    # and report no forbidden change at all — the deletions and symlink swaps git alone cannot see
-    # are exactly what that fingerprinting exists to catch.
-    request = request.model_copy(update={"cwd": canonical_root(request.cwd)})
+    # The operator's Codex boundary applies to every way Codex is reachable, not just the mounted
+    # tool — otherwise `provider=codex` would be a way around AGENT_FLEET_CODEX_ENABLED and the
+    # allowed-roots list. This also canonicalizes: `forbidden_state` globs its patterns from the
+    # path it is handed, so a caller-supplied subdirectory would silently fingerprint the wrong
+    # subtree and report no forbidden change at all — the deletions and symlink swaps git cannot
+    # see are exactly what that fingerprinting exists to catch.
+    root, timeout_s = enforce_codex_policy(request.cwd, request.timeout_s)
+    request = request.model_copy(update={"cwd": root, "timeout_s": timeout_s})
     require_isolated_worktree(request.cwd)
     stdout = await asyncio.to_thread(_run_codex_sync, request, task)
     parsed = _parse_jsonl(stdout)
