@@ -18,9 +18,10 @@ def compose(request: ProblemRequest, selection: SelectedCapabilities) -> AgentSp
         from the task and selected tools/skills.
     """
     name = request.name or slugify_name(request.task)
-    # A request that names tools is an allowlist, not an addition: the default grant is
-    # everything, so narrowing has to be able to take things away. Naming none keeps the default.
-    tools = request.tools or selection.tools
+    # A toolkit adds to what the agent already has rather than fencing it in: the default grant
+    # plus whatever extra it names. Taking capability away is a deny list's job — keeping the two
+    # intents in separate fields means neither has to mean both.
+    tools = [*selection.tools, *(ref for ref in request.tools if ref not in selection.tools)]
     # None means "choose for me"; a list (even empty) is the caller's exact answer
     skills = selection.skills if request.skills is None else request.skills
     prompt = TemplatedPrompt(
